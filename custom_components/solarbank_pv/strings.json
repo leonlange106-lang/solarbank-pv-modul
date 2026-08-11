@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Solarbank DC-Strangdaten",
+        "description": "Liest die MPP-Tracker-Register der Solarbank aus. Ausschliesslich lesend, Function Code 4. Laeuft konfliktfrei neben der offiziellen Anker-Integration.",
+        "data": {
+          "host": "IP-Adresse",
+          "port": "Port",
+          "unit": "Modbus-Unit-ID",
+          "serial_suffix": "Seriennummernkuerzel",
+          "outdoor_temp_entity": "Aussentemperatur"
+        },
+        "data_description": {
+          "unit": "Antwortet hat bisher nur Unit 1 (und identisch Unit 0).",
+          "serial_suffix": "Letzte drei Zeichen der Seriennummer. Geht in die unique_id ein und darf danach nicht mehr geaendert werden.",
+          "outdoor_temp_entity": "Grundlage fuer die Zelltemperaturschaetzung der Abregelungserkennung."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Keine Antwort auf einen Testread von Register 10144. Adresse, Port oder Unit-ID pruefen."
+    },
+    "abort": {
+      "already_configured": "Diese Solarbank ist bereits eingerichtet."
+    }
+  }
+}

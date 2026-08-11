@@ -1,0 +1,13 @@
+{
+  "domain": "solarbank_pv",
+  "name": "Solarbank DC-Strangdaten",
+  "version": "0.1.0",
+  "documentation": "https://github.com/leonlange106-lang/solarbank-pv-modul",
+  "issue_tracker": "https://github.com/leonlange106-lang/solarbank-pv-modul/issues",
+  "codeowners": ["@leonlange106-lang"],
+  "config_flow": true,
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "dependencies": [],
+  "requirements": []
+}
