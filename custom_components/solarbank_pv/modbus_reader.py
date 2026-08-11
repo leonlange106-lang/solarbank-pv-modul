@@ -137,6 +137,13 @@ def decode(kind: str, words: list[int]) -> int:
     """Wandelt Rohregister in einen Ganzzahlwert."""
     if kind == "u16":
         return words[0] & 0xFFFF
+    if kind == "i16":
+        # Die Strangstroeme sind vorzeichenbehaftet. Kurz vor dem Erloeschen
+        # liefert das Geraet kleine negative Werte (gemessen am 11.08.2026 ab
+        # 19:28: Register 10168 = 65528, also -0,08 A). Als vorzeichenlos
+        # gelesen wuerden daraus 655,28 A und Phantomleistungen ueber 20 kW.
+        value = words[0] & 0xFFFF
+        return value - 0x10000 if value & 0x8000 else value
     if kind == "u16_hi":
         return (words[0] >> 8) & 0xFF
     if kind in ("i32", "u32"):

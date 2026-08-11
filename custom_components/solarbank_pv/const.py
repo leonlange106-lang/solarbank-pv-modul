@@ -159,6 +159,9 @@ BLOCKS: Final[dict[str, tuple[Block, ...]]] = {
 # certain: Deutung gegen App, HA-Historie oder Herstellerdefinition verifiziert
 # ---------------------------------------------------------------------------
 
+# kind "i16": vorzeichenbehaftetes 16-Bit-Register. Die Strangstroeme brauchen
+# das - siehe modbus_reader.decode(). Ohne Vorzeichen wird aus -0,08 A ein Wert
+# von 655,28 A, und die abgeleitete Leistung springt auf ueber 20 kW.
 @dataclass(frozen=True)
 class Reg:
     key: str
@@ -195,15 +198,15 @@ _UNKNOWN = dict(state_class=None, icon="mdi:help-circle-outline")
 REGISTERS: Final[tuple[Reg, ...]] = (
     # --- Strangdaten, aktiv --------------------------------------------------
     Reg("pv1_voltage", 10167, "u16", 0.1, "Modul 1 Spannung", "strings", True, **_V),
-    Reg("pv1_current", 10168, "u16", 0.01, "Modul 1 Strom", "strings", True, **_A),
+    Reg("pv1_current", 10168, "i16", 0.01, "Modul 1 Strom", "strings", True, **_A),
     Reg("pv2_voltage", 10169, "u16", 0.1, "Modul 2 Spannung", "strings", True, **_V),
-    Reg("pv2_current", 10170, "u16", 0.01, "Modul 2 Strom", "strings", True, **_A),
+    Reg("pv2_current", 10170, "i16", 0.01, "Modul 2 Strom", "strings", True, **_A),
     Reg("pv3_voltage", 10171, "u16", 0.1, "Modul 3 Spannung", "strings", True, **_V),
-    Reg("pv3_current", 10172, "u16", 0.01, "Modul 3 Strom", "strings", True, **_A),
+    Reg("pv3_current", 10172, "i16", 0.01, "Modul 3 Strom", "strings", True, **_A),
     # 10205 war der letzte Kandidat fuer Strang 4 und ist es nicht: ueber 29
     # Messpunkte deckt es sich mit AC-Leistung / Netzspannung auf 0,025 A genau
     # (r = +0,996), waehrend die Korrelation zum PV4-Restwert bei +0,30 liegt.
-    Reg("ac_output_current", 10205, "u16", 0.01, "AC-Ausgangsstrom",
+    Reg("ac_output_current", 10205, "i16", 0.01, "AC-Ausgangsstrom",
         "strings", True, enabled=True, unit="A", device_class="current",
         icon="mdi:transmission-tower-export"),
     # Stufenwert in 1,0-V-Schritten, faellt ueber den Tag mit der Einstrahlung.

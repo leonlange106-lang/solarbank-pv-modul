@@ -274,17 +274,20 @@ Modell sie vorhersagt.**
 
 ### 4.1 Negativkontrolle — taugt das Fenster?
 
-Das Abendfenster 17:28–18:06 ist mit einer Spanne der Gesamtleistung von
-320–810 W (81 % des Mittels) und mehrfachem Richtungswechsel **nicht monoton**.
+Das Abendfenster 17:28–18:21 (n = 106) ist mit einer Spanne der Gesamtleistung
+von 320–810 W (83 % des Mittels) und mehrfachem Richtungswechsel **nicht
+monoton**.
 
 | Negativkontrolle | r(resid) | r(pv_total) |
 |---|---|---|
-| 10213 Netzfrequenz | **−0,218** | −0,267 |
-| 10238 Netzfrequenz (Zweitmessung) | **−0,218** | −0,267 |
+| 10213 Netzfrequenz | **+0,001** | +0,085 |
+| 10238 Netzfrequenz (Zweitmessung) | **+0,001** | +0,085 |
 
 Zum Vergleich: im verworfenen Mittagsfenster lieferte dieselbe Netzfrequenz
-r = −0,83. **Das Fenster ist tauglich.** Alle folgenden r-Werte sind
-interpretierbar, solange sie deutlich über 0,22 liegen.
+r = −0,83. Hier ist sie **null**. Das Fenster ist damit nicht bloß tauglich,
+sondern sauber: es gibt keinen gemeinsamen Trend, an dem sich beliebige Größen
+scheinbar korrelieren könnten. Jeder r-Wert unterhalb von etwa 0,2 ist
+Rauschen; erst darüber ist überhaupt etwas zu deuten.
 
 ### 4.2 Korrelationstabelle, sortiert nach Stärke
 
@@ -294,35 +297,42 @@ Strangspannung (160–500 = 16–50 V) passen könnte.
 
 | Adresse | r(resid) | r(pv_total) | Wertebereich | Zustände | Bereich passt? | Urteil |
 |---|---|---|---|---|---|---|
-| 10003 | +0,657 | +1,000 | 320–810 | 25 | (Strom) | **Zirkulär** — Lowword von 10002, aus dem der Restwert gebildet wird |
-| 10205 | +0,508 | +0,915 | 194–337 | 50 | (Strom) | AC-Ausgangsstrom, r(AC-Leistung) = **+0,996**. Bereits ausgeschlossen |
-| 10170 | +0,503 | +0,696 | 308–705 | 59 | (Strom) | Strom Strang 2 — bekannt |
-| 10209 | +0,487 | +0,905 | 470–800 | 23 | (Strom) | Lowword der AC-Ausgangsleistung |
-| 10061 | −0,468 | −0,647 | 16281–18317 | 69 | nein | Gerätezeit (Unix-Lowword). Läuft monoton, korreliert deshalb mit allem Fallenden |
-| 10230 | −0,446 | −0,433 | 17–34 | 11 | nein | siehe Abschnitt 5 |
-| 10169 | −0,427 | −0,337 | 296–358 | 35 | (Spannung) | Spannung Strang 2 — bekannt |
-| 10236 | −0,399 | −0,374 | 42–82 | 21 | nein | siehe Abschnitt 5 |
-| 10252 | +0,368 | +0,244 | 8960–9216 | 3 | nein | siehe Abschnitt 5 |
-| 10156 | +0,367 | +0,243 | 350–360 | **2** | nein | zwei Zustände — als Messgröße ausgeschlossen |
-| 10009 | −0,350 | −0,302 | 0–260 | 3 | (Strom) | Batterieleistung Lowword |
-| 10011 | +0,320 | +0,655 | 460–2180 | 27 | nein | Hauslast Lowword |
-| 10071 | −0,305 | −0,228 | 0–65535 | 2 | nein | Batterie-Sollwert (wird vom Hersteller beschrieben) |
-| **10213** | **−0,218** | −0,267 | 4995–5009 | 15 | nein | **Negativkontrolle** |
-| **10238** | **−0,218** | −0,267 | 4995–5009 | 15 | nein | **Negativkontrolle** |
-| 10172 | −0,184 | +0,358 | 4–740 | 65 | (Strom) | Strom Strang 3 — bekannt |
-| 10224 / 10227 | −0,173 | −0,240 | 2377–2410 | 20 | nein | Netzspannung |
-| 10202 / 10199 | −0,169 | −0,231 | 2377–2410 | 20/21 | nein | Netzspannung |
-| 10167 | −0,109 | −0,340 | 311–363 | 32 | (Spannung) | Spannung Strang 1 — bekannt |
-| 10254 | +0,100 | −0,056 | 0–65535 | 2 | nein | siehe Abschnitt 5 |
-| 10013 | +0,093 | +0,019 | 0–65526 | 13 | nein | Netzleistung Lowword |
-| 10012 | +0,091 | +0,015 | 0–65535 | 2 | nein | Netzleistung Highword (Vorzeichen) |
-| 10234 | −0,074 | −0,199 | 1–3 | 3 | nein | siehe Abschnitt 5 |
-| 10168 | +0,031 | +0,418 | 198–695 | 64 | (Strom) | Strom Strang 1 — bekannt |
-| 10171 | +0,020 | −0,299 | 314–374 | 41 | (Spannung) | Spannung Strang 3 — bekannt |
+| 10003 | +0,624 | +1,000 | 320–810 | 29 | (Strom) | **Zirkulär** — Lowword von 10002, aus dem der Restwert gebildet wird |
+| 10205 | +0,504 | +0,936 | 192–337 | 59 | (Strom) | AC-Ausgangsstrom, r(AC-Leistung) = **+0,996**. Bereits ausgeschlossen |
+| 10209 | +0,497 | +0,928 | 460–810 | 25 | (Strom) | Lowword der AC-Ausgangsleistung |
+| 10011 | +0,407 | +0,748 | 440–2180 | 30 | nein | Hauslast, Lowword |
+| 10230 | −0,364 | −0,378 | 17–36 | 13 | nein | siehe Abschnitt 5 |
+| 10169 | −0,360 | −0,283 | 288–370 | 46 | (Spannung) | Spannung Strang 2 — bekannt |
+| 10236 | −0,342 | −0,338 | 42–82 | 23 | nein | siehe Abschnitt 5 |
+| 10170 | +0,326 | +0,657 | 77–705 | 80 | (Strom) | Strom Strang 2 — bekannt |
+| 10252 | +0,301 | +0,236 | 8960–9216 | 3 | nein | siehe Abschnitt 5 |
+| 10156 | +0,300 | +0,234 | 350–360 | **2** | nein | zwei Zustände — als Messgröße ausgeschlossen |
+| 10009 | −0,285 | −0,225 | 0–260 | 7 | (Strom) | Batterieleistung, Lowword |
+| 10254 | +0,260 | +0,146 | 0/65535 | 2 | nein | siehe Abschnitt 5 |
+| 10167 | −0,175 | −0,273 | 273–366 | 45 | (Spannung) | Spannung Strang 1 — bekannt |
+| 10224 / 10227 | −0,173 | −0,234 | 2377–2410 | 21 | nein | Netzspannung |
+| 10202 / 10199 | −0,17 | −0,22 | 2377–2410 | 21 | nein | Netzspannung |
+| 10234 | −0,152 | −0,278 | 1–3 | 3 | nein | siehe Abschnitt 5 |
+| 10071 | +0,148 | +0,167 | 0/65535 | 2 | nein | Batterie-Sollwert (wird vom Hersteller beschrieben) |
+| 10061 | −0,147 | −0,485 | 16281–19427 | 106 | nein | Gerätezeit (Unix-Lowword), zählt monoton |
+| 10171 | −0,139 | −0,300 | 294–374 | 51 | (Spannung) | Spannung Strang 3 — bekannt |
+| 10172 | −0,072 | +0,428 | 4–740 | 87 | (Strom) | Strom Strang 3 — bekannt |
+| 10168 | +0,063 | +0,505 | 169–695 | 92 | (Strom) | Strom Strang 1 — bekannt |
+| 10013 | +0,017 | −0,056 | 0–65526 | 16 | nein | Netzleistung, Lowword |
+| 10012 | +0,015 | −0,060 | 0/65535 | 2 | nein | Netzleistung, Highword (Vorzeichen) |
+| **10213** | **+0,001** | +0,085 | 4991–5009 | 19 | nein | **Negativkontrolle** |
+| **10238** | **+0,001** | +0,085 | 4991–5009 | 19 | nein | **Negativkontrolle** |
 
 123 der 150 Register sind über das gesamte Fenster **konstant**, darunter
 10173–10175 (die Plätze eines vierten Strangpaares), 10183, 10187 und die
 Bereiche 10042–10059, 10062–10070, 10134–10155, 10157–10166.
+
+**Die Anzahl verschiedener Zustände ist das schärfere Ausschlusskriterium als
+die Korrelation.** Die vier bestätigten Strangregister nehmen im selben Fenster
+80, 87, 92 und 45–51 verschiedene Werte an. Ein Register mit 2, 3 oder 13
+Zuständen kann keine Modulmessgröße sein, unabhängig von seinem r-Wert. Damit
+scheiden 10156 (2), 10252 (3), 10234 (3), 10254 (2), 10230 (13) und 10236 (23)
+allein aus der Auflösung heraus aus.
 
 ### 4.3 Ergebnis der Suche
 
@@ -334,12 +344,13 @@ Bereiche 10042–10059, 10062–10070, 10134–10155, 10157–10166.
 - Der zweitstärkste Kandidat 10205 ist der AC-Ausgangsstrom mit r = +0,996 gegen
   die AC-Leistung. Er war der letzte offene Kandidat und ist erledigt.
 - Alle übrigen r > 0,3 gehören zu bereits identifizierten Größen oder scheitern
-  am Wertebereich: 10230 (17–34), 10234 (1–3) und 10236 (42–82) können weder
-  0–16 A (Rohwert 0–1600) noch 16–50 V (Rohwert 160–500) darstellen, egal wie
-  sie skaliert werden — sie haben schlicht zu wenige Stufen. Ein Strangstrom
-  hatte im selben Fenster 64–66 verschiedene Zustände, 10230 hat elf.
+  an der Auflösung: 10230 (17–36, 13 Zustände), 10234 (1–3) und 10236 (42–82)
+  können weder 0–16 A (Rohwert 0–1600) noch 16–50 V (Rohwert 160–500)
+  darstellen, egal wie sie skaliert werden — sie haben schlicht zu wenige
+  Stufen. Die Strangströme hatten im selben Fenster 80, 87 und 92 verschiedene
+  Zustände, 10230 hat dreizehn.
 - **10173, 10174, 10175** — die Plätze, an denen ein viertes Paar nach dem
-  Schema 10167/68, 10169/70, 10171/72 stehen müsste — sind über alle 84
+  Schema 10167/68, 10169/70, 10171/72 stehen müsste — sind über alle 106
   Abendmesspunkte **konstant null**, während der Restwert 96–177 W anzeigte.
 
 **Damit ist die Frage beantwortet: Strang 4 hat kein Modbus-Register.** Das
@@ -369,7 +380,7 @@ Das Muster ist `(Wert << 8) | Flag`. Belegt:
 |---|---|---|
 | 10041 | Batterie-SOC in % | 11/11 gegen HA-Historie (bekannt) |
 | **10130** | **Batterie-SOC in %** | **neu**: Scan 13:37 → 79 bei SOC 79 · 13:46 → 81 · 15:00 → 93 · 17:24 → 100 bei SOC 100. Im gesamten Abendlauf gilt 10130 == 10041 == 0x6401 |
-| **10252** | **10156 ÷ 10** | **neu**: `Highbyte(10252) × 10 == 10156` in **84 von 84** Abendmesspunkten und in allen drei Scanlesungen (13:44 → 37 bei 10156 = 370; 13:53 → 38 bei 380; 15:00 → 37 bei 370) |
+| **10252** | **10156 ÷ 10** | **neu**: `Highbyte(10252) × 10 == 10156` in **104 von 104** Abendmesspunkten und in allen drei Scanlesungen (13:44 → 37 bei 10156 = 370; 13:53 → 38 bei 380; 15:00 → 37 bei 370) |
 
 Das Lowbyte ist bei 10041/10130 konstant 1, bei 10252 wechselt es zwischen 0, 1
 und (am Mittag) 2.
@@ -377,9 +388,9 @@ und (am Mittag) 2.
 **(B) 10230 und 10236 sind ein Strom-/Leistungspaar an der Netzspannung.**
 
 Die Beziehung `10236 = 10230 × 10224 / 1000` — also *Leistung = Strom × Spannung*
-mit 10230 in 0,01 A und 10236 in 1 W bzw. var — gilt über alle 84 Messpunkte mit
-einer mittleren Abweichung von **+0,38** und einer Streuung von **2,08** bei
-Werten um 73, also **2,8 %**. Der Bestfit-Faktor ist 2,4148, die gemessene
+mit 10230 in 0,01 A und 10236 in 1 W bzw. var — gilt über alle 104 Messpunkte mit
+einer mittleren Abweichung von **+0,44** und einer Streuung von **1,92** bei
+Werten um 73, also **2,6 %**. Der Bestfit-Faktor ist 2,4173, die gemessene
 Netzspannung ÷ 100 ist 2,4026 ± 0,0055.
 
 Rechnet man 10230 als Blindstrom, ergibt sich ein Leistungsfaktor von 0,98–1,01
@@ -388,19 +399,19 @@ Ausgangsfilter eines 800-W-Wechselrichters erzeugt. Dass beide Größen **fallen
 wenn die Wirkleistung steigt, passt dazu: der kapazitive Blindstrom des Filters
 ist annähernd konstant und wird bei steigendem Wirkstrom teilweise kompensiert.
 
-*Ehrliche Einschränkung:* Der Faktor 2,4148 liegt auch 0,0006 neben 1+√2. Das ist
+*Ehrliche Einschränkung:* Der Faktor 2,4173 liegt auch 0,003 neben 1+√2. Das ist
 Zahlenmystik, aber es zeigt, dass die Übereinstimmung mit der Netzspannung nicht
 beweisend ist — die Netzspannung schwankte im Fenster nur um 1,4 %, das
-Quantisierungsrauschen beträgt 2,8 %. **Die Proportionalität ist bewiesen, die
+Quantisierungsrauschen beträgt 2,6 %. **Die Proportionalität ist bewiesen, die
 Identifikation des Proportionalitätsfaktors mit der Netzspannung nicht.**
 
 ### 5.1 Thesentabelle
 
 | Register | Beobachtung im Abendlauf | These | Widerlegt, wenn |
 |---|---|---|---|
-| **10040** | konstant 0x0101 über 84 Punkte und 109 Langlaufpunkte | Kopfsatz des Akku-Datensatzfelds: „ein Akkupack vorhanden, Typ 1". Zusammen mit 10041 ein Paar je Einheit | Ein Erweiterungsakku wird angebaut und 10040 bleibt 0x0101, während 10042 ff. weiter null sind |
+| **10040** | konstant 0x0101 über 104 Punkte und 109 Langlaufpunkte | Kopfsatz des Akku-Datensatzfelds: „ein Akkupack vorhanden, Typ 1". Zusammen mit 10041 ein Paar je Einheit | Ein Erweiterungsakku wird angebaut und 10040 bleibt 0x0101, während 10042 ff. weiter null sind |
 | **10041** | 0x6401, Highbyte = SOC | **bekannt/sicher**: Highbyte = SOC %, Lowbyte = Vorhandenseitsflag | — |
-| **10042–10047** | konstant 0 über 193 Punkte | Plätze für Erweiterungsakkus 2 und 3, nach dem Schema 10040/10041 | Anbau eines Erweiterungsakkus, ohne dass 10042/10043 belegt werden |
+| **10042–10047** | konstant 0 über 213 Punkte | Plätze für Erweiterungsakkus 2 und 3, nach dem Schema 10040/10041 | Anbau eines Erweiterungsakkus, ohne dass 10042/10043 belegt werden |
 | **10074** | 1 (FC03, Holding) | Boolesche Konfigurationsgröße im Holding-Block 10074–10081, den die Herstellerintegration liest, aber keiner Entity zuordnet | Wert nimmt jemals einen Wert > 1 an |
 | **10075 / 10076** | je 0xFFFF (FC03) | „nicht gesetzt"-Sentinel für zwei optionale Konfigurationswerte (als INT16 = −1) | Wert wird nach Änderung einer App-Einstellung zu etwas anderem als 0xFFFF oder 0 |
 | **10079** | konstant 10000 (FC03) | Grenzwert mit Skalierung ÷100, also 100,00 % — vermutlich eine Leistungsbegrenzung in Prozent | Wert ändert sich, wenn die AC-Ausgangsbegrenzung in der App von 800 W auf einen anderen Wert gesetzt wird, ohne dass 10038 sich ändert. Ändert sich stattdessen 10038 allein, ist 10079 keine Leistungsbegrenzung |
@@ -408,12 +419,12 @@ Identifikation des Proportionalitätsfaktors mit der Netzspannung nicht.**
 | **10124** | 18772 = 0x4954 = ASCII „IT" | Ländercode / Netzregelwerk-Kennung. „IT" wäre Italien — für ein Gerät in Deutschland falsch, daher eher **kein** ASCII, sondern eine binäre Kennung, die zufällig als „IT" lesbar ist | Der Netzcode wird in der App auf ein anderes Land gestellt und 10124 ändert sich nicht (→ keine Ländercodierung). Ändert er sich, ist die These bestätigt |
 | **10125** | 57356 = 0xE00C | Binäre Kennung, kein ASCII (0xE0 ist kein druckbares Zeichen). Vermutlich Hardware-Revision oder Merkmalsmaske; Lowbyte 12 könnte eine Variantennummer sein | Wert ändert sich zur Laufzeit — dann ist es keine Kennung, sondern ein Zustand |
 | **10130** | 0x6401 = 0x64 << 8 \| 1 | **NEU, hoch belegt**: Duplikat von 10041, Highbyte = Batterie-SOC in %. Vier unabhängige Scanlesungen bei SOC 79 / 81 / 93 / 100 stimmen | Bei einem SOC ungleich dem von 10041 weichen die Highbytes voneinander ab |
-| **10133** | 9480 = 0x2508 | Binäre Kennung im Geräteinfoblock. Highbyte 37 fällt auf, weil auch 10252 ein Highbyte von 35–38 hat — ein Zusammenhang ist aber **nicht** belegt, 10133 war über alle 84 Punkte konstant | 10133 bewegt sich jemals — dann ist es eine Messgröße und die Kennungsthese fällt |
+| **10133** | 9480 = 0x2508 | Binäre Kennung im Geräteinfoblock. Highbyte 37 fällt auf, weil auch 10252 ein Highbyte von 35–38 hat — ein Zusammenhang ist aber **nicht** belegt, 10133 war über alle 104 Punkte konstant | 10133 bewegt sich jemals — dann ist es eine Messgröße und die Kennungsthese fällt |
 | **10156** | 2 Zustände (350, 360) am Abend, über den Tag 380 → 370 → 380 → 370 → 360 → 350, Quantisierung exakt 1,0 | **These A: Batterie-Packspannung in 0,1 V, mit 1-V-Auflösung berichtet.** 35,0–38,0 V passen zu einem 11S-LFP-Pack. **These B: Innen- oder Akkutemperatur in 0,1 °C mit 1-°C-Auflösung.** Beide erklären den Tagesverlauf; siehe Zwischenbefund unten | **Die Nacht entscheidet.** Der Akku entlädt von 100 % auf die Entladegrenze 5 %. Fällt 10156 dabei stetig und eng an den SOC gekoppelt um mehrere Einheiten (350 → ~320), ist es die Spannung. Fällt es nur um 2–3 Einheiten und ohne SOC-Kopplung, ist es die Temperatur. **Springt es in dem Moment, in dem die Entladung einsetzt** (IR-Sprung), ist es zwingend die Spannung — eine Temperatur kann nicht springen |
-| **10183 / 10187** | konstant 0 in 84 Punkten und im Scan | Reservierte Einzelregister ohne Funktion in dieser Firmware. Sie sind lesbar, weil das Gerät Start/Count-Kombinationen und nicht Einzeladressen validiert | Ein Wert ungleich null tritt auf |
+| **10183 / 10187** | konstant 0 in 104 Punkten und im Scan | Reservierte Einzelregister ohne Funktion in dieser Firmware. Sie sind lesbar, weil das Gerät Start/Count-Kombinationen und nicht Einzeladressen validiert | Ein Wert ungleich null tritt auf |
 | **10230** | 17–34, 11 Zustände, r(pv_total) = −0,433, ändert sich in 65 % der Takte | **AC-Blindstrom in 0,01 A** (0,17–0,34 A). Gemeinsam mit 10236 durch `10236 = 10230 × U/1000` verbunden | 10236 löst sich jemals von dieser Beziehung um mehr als 10 %; oder der Wert überschreitet den plausiblen Blindstrombereich eines 800-W-Geräts (> 1 A) |
 | **10234** | 1–3 (im Langlauf 0–4), keine Kopplung an 10230/10236 (r = +0,25 / +0,18) | Zählwert oder Zustandscode, **kein** Teil des Blindleistungspaars. Kandidaten: Anzahl aktiver Regelkreise, Netzqualitätsklasse, oder ein Zähler mit kleinem Wertevorrat | Wert nimmt jemals einen Wert > 4 an, oder er zeigt eine feste Zuordnung zu einem bekannten Betriebszustand (dann ist es ein Zustandscode und die Zählerthese fällt) |
-| **10236** | 42–82, 21 Zustände, r(10230) = **+0,960** | **AC-Blindleistung in var**, = 10230 × Netzspannung. Abweichung von dieser Formel: +0,38 ± 2,08 über 84 Punkte | Siehe 10230. Zusätzlich: geht 10236 nach Sonnenuntergang auf null, obwohl das Gerät am Netz bleibt, spricht das gegen einen Filterblindstrom und für eine wirkleistungsabhängige Größe |
+| **10236** | 42–82, 21 Zustände, r(10230) = **+0,960** | **AC-Blindleistung in var**, = 10230 × Netzspannung. Abweichung von dieser Formel: +0,44 ± 1,92 über 104 Punkte | Siehe 10230. Zusätzlich: geht 10236 nach Sonnenuntergang auf null, obwohl das Gerät am Netz bleibt, spricht das gegen einen Filterblindstrom und für eine wirkleistungsabhängige Größe |
 | **10250 / 10252 / 10254 / 10256** | 10250 = 0 · 10252 = 0x2300/0x2301/0x2400 · 10254 wechselt 0 ↔ 65535 · 10256 = 100 (im Scan 15:00: 93) | **Der Sampler hat hier nur die Highwords gelesen.** 10250 ist per Herstellerdefinition das Highword von `rated_energy` (INT32) — der eigentliche Wert 51 (= 5,1 kWh) steht in 10251, das nie gelesen wurde. Ebenso fehlen 10253, 10255, 10257. **10254 = 0xFFFF ist das Highword einer negativen INT32-Größe** — sie wechselt das Vorzeichen im Takt mit dem Lowbyte von 10252. **10256 = 93 bei SOC 93 und 100 bei SOC 100: dritte Kopie des SOC** | 10256 weicht bei einem SOC ungleich 100 von 10014 ab. Für 10252/10254: ein Lauf, der 10250–10257 als Block liest, entscheidet in einer einzigen Messung, ob es 32-Bit-Objekte oder 16-Bit-Register sind |
 | **32775–32799** | konstant 0, im Scan wie im Betrieb | Auffüllung des 32er-Blocks hinter der Modellzeichenkette (32768–32770 „AE103") und der Modusmaske 32774. Kein Inhalt in dieser Firmware | Ein Wert ungleich null tritt auf |
 | **60004–60031** | konstant 0 (FC03, Holding) | Auffüllung des Konfigurationsblocks hinter den vier belegten Sollwerten 60000–60003. Reserviert für künftige Einstellungen | Eine bislang unbenutzte App-Einstellung wird gesetzt und ein Register in 60004+ ändert sich |
@@ -560,7 +571,7 @@ sensor:
 falsch liest:
 
 > Dieser Wert ist **kein Messwert**, sondern eine Differenz. Er ist auf ±25 W
-> genau, solange über 10 Minuten gemittelt wird. Der Rohwert schwankt um ±44 W
+> genau, solange über 10 Minuten gemittelt wird. Der Rohwert schwankt um ±41 W
 > und wird bei wechselnder Bewölkung auch negativ. Für Momentanwerte ist er
 > ungeeignet, für Verschattungsanalyse und Tagesbilanz geeignet. Spannung und
 > Strom von Strang 4 sind über Modbus **nicht** verfügbar — der Arbeitspunkt des
@@ -581,7 +592,7 @@ Rauschausschläge zwar heraus, aber nur, wenn nicht bei null abgeschnitten wurde
 | **Welches Dachmodul ist Strang 4?** | Aus den Daten nicht ableitbar | Ein Modul 60 Sekunden abdecken und beobachten, welcher der drei Ströme einbricht. Bricht keiner ein und steigt stattdessen der Restwert nicht mehr, ist das abgedeckte Modul Strang 4. Drei Handgriffe, klärt gleichzeitig die Zuordnung aller vier |
 | **Ist 10156 Spannung oder Temperatur?** | Beide Deutungen passen zum bisherigen Tagesverlauf | Läuft heute Nacht automatisch mit: der Akku entlädt von 100 % auf 5 %. Entscheidungsregel in Abschnitt 5.1 |
 | **Was steht in 10251, 10253, 10255, 10257?** | Der Sampler liest 10250/10252/10254/10256 einzeln mit `count=1` und erwischt bei 32-Bit-Objekten nur das Highword | Ein einziger Lesezyklus mit `(10250, 8)`. Der Scan belegt, dass der Block 10250–10265 lesbar ist. Das klärt in einer Messung, ob 10252 und 10254 16- oder 32-Bit-Objekte sind |
-| **Bestätigt sich 10230/10236 als Blindstrom/Blindleistung?** | Die Proportionalität ist bewiesen, der Faktor nicht eindeutig der Netzspannung zuzuordnen (Netzspannung schwankte nur 1,4 %, Quantisierungsrauschen 2,8 %) | Eine Messung über einen Tag mit größerer Netzspannungsschwankung, oder — besser — eine Messung, in der die AC-Ausgangsleistung auf null geht, während das Gerät am Netz bleibt. Bleibt 10236 dann stehen, ist es der Filterblindstrom; geht es auf null, ist es wirkleistungsabhängig |
+| **Bestätigt sich 10230/10236 als Blindstrom/Blindleistung?** | Die Proportionalität ist bewiesen, der Faktor nicht eindeutig der Netzspannung zuzuordnen (Netzspannung schwankte nur 1,4 %, Quantisierungsrauschen 2,6 %) | Eine Messung über einen Tag mit größerer Netzspannungsschwankung, oder — besser — eine Messung, in der die AC-Ausgangsleistung auf null geht, während das Gerät am Netz bleibt. Bleibt 10236 dann stehen, ist es der Filterblindstrom; geht es auf null, ist es wirkleistungsabhängig |
 | **Verhalten der Register bei Erweiterungsakku** | 10042–10047 sind konstant null, weil vermutlich keiner verbaut ist | Anbau eines Erweiterungsakkus. Bis dahin nicht klärbar |
 | **Sonnenuntergangstest** | Läuft zur Abfassung dieses Dokuments noch | Siehe Abschnitt 2.3 — wird nachgetragen |
 
@@ -598,5 +609,5 @@ Rauschausschläge zwar heraus, aber nur, wenn nicht bei null abgeschnitten wurde
   spricht allerdings deutlich dagegen: bei dreifacher Leistung müsste ein
   Verlustanteil dreifach sichtbar sein, und er ist es nicht.
 - Sie zeigt nicht, dass in keinem Register des Geräts ein PV4-Wert steht. Sie
-  zeigt, dass in keinem der 150 über 84 Messpunkte beobachteten Register einer
+  zeigt, dass in keinem der 150 über 104 Messpunkte beobachteten Register einer
   steht, und dass die restlichen lesbaren Adressen über Stunden konstant waren.
