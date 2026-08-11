@@ -23,6 +23,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import slugify
 
 from . import SolarbankData
 from .const import (
@@ -31,7 +32,7 @@ from .const import (
     CURTAIL_VOC_FRACTION,
     DEFAULT_OUTDOOR_TEMP,
     DOMAIN,
-    MIN_CURRENT_FOR_TEMP,
+    MIN_CURRENT_FOR_RATIO,
     MODULE_TEMP_COEFF,
     MODULE_VOC_STC,
     REGISTERS_BY_KEY,
@@ -78,6 +79,9 @@ class SolarbankBinaryEntity(CoordinatorEntity[SolarbankGroupCoordinator], Binary
         self._attr_device_info = data.device_info
         self._attr_unique_id = f"solarbank_{data.serial_suffix}_{unique_suffix}"
         self._attr_name = name
+        # Siehe sensor.py: ohne explizite Zuweisung stellt Home Assistant den
+        # Geraetenamen voran und bricht damit die Konvention der Anlage.
+        self.entity_id = f"binary_sensor.{slugify(name)}"
         self._attr_entity_registry_enabled_default = True
         self._state: bool | None = None
 
@@ -116,7 +120,7 @@ class ShadedBinarySensor(SolarbankBinaryEntity):
         others = [v for v in (self._value(k) for k in self._other_keys) if v is not None]
         reference = statistics.median(others) if others else None
 
-        if own is None or reference is None or reference < MIN_CURRENT_FOR_TEMP:
+        if own is None or reference is None or reference < MIN_CURRENT_FOR_RATIO:
             # Nachts oder bei fehlenden Werten ist die Aussage nicht definiert.
             # Unbekannt ist ehrlicher als ein eingefrorenes "nicht verschattet".
             self._ratio = None
@@ -197,7 +201,7 @@ class CurtailmentBinarySensor(SolarbankBinaryEntity):
         # Nachts steht die Spannung ohne Last ebenfalls hoch. Ohne einen
         # Mindeststrom auf mindestens einem Strang waere jede Nacht eine
         # gemeldete Abregelung.
-        producing = any(c >= MIN_CURRENT_FOR_TEMP for c in currents if c is not None)
+        producing = any(c >= MIN_CURRENT_FOR_RATIO for c in currents if c is not None)
         self._state = producing and all(v >= threshold for v in voltages if v is not None)
 
         super()._handle_coordinator_update()

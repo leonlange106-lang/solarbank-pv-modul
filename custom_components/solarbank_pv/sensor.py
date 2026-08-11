@@ -21,10 +21,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import slugify
 
 from . import SolarbankData
 from .const import (
     DOMAIN,
+    MIN_CURRENT_FOR_RATIO,
     MIN_CURRENT_FOR_TEMP,
     MODULE_TEMP_COEFF,
     MODULE_VMP_STC,
@@ -95,6 +97,11 @@ class SolarbankEntity(CoordinatorEntity[SolarbankGroupCoordinator]):
         # geaendert, der Anzeigename darf jederzeit verbessert werden.
         self._attr_unique_id = f"solarbank_{data.serial_suffix}_{unique_suffix}"
         self._attr_name = name
+        # Muss ausdruecklich gesetzt werden. Home Assistant stellt bei der
+        # ID-Bildung sonst den Geraetenamen voran und erzeugt
+        # sensor.solarbank_dc_straenge_441_pv_modul_1_leistung - auch bei
+        # has_entity_name = False. Die Anlage fuehrt aber sensor.pv_*.
+        self.entity_id = f"sensor.{slugify(name)}"
 
 
 class RegisterSensor(SolarbankEntity, SensorEntity):
@@ -263,7 +270,7 @@ class CurrentRatioSensor(StringDerivedEntity):
         reference = statistics.median(others)
         # Nachts liefern alle Straenge null. Ein Verhaeltnis waere dann entweder
         # eine Division durch null oder eine Scheinaussage.
-        if reference < MIN_CURRENT_FOR_TEMP:
+        if reference < MIN_CURRENT_FOR_RATIO:
             return None
         return round(own / reference * 100.0, 1)
 

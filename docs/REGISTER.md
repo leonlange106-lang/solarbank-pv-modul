@@ -393,12 +393,45 @@ Solarbank-Tracker: vier Stück à 1250 W, MPP-Fenster 16–50 V, maximal 36 A.
 
 ## 7. Physische Modulzuordnung
 
-**Ungeklärt.** Welches Register zu welchem Modul in der Dachreihe gehört, steht
-nirgends und lässt sich nicht aus den Daten ableiten. Ohne diese Zuordnung weiß
-man zwar, *dass* ein Modul verschattet ist, aber nicht welches.
+**Geklärt am 11.08.2026, 18:30.** Grundlage sind zwei unabhängige Angaben:
 
-Klärung experimentell: ein Modul kurz abdecken und beobachten, welcher Strom
-einbricht. Drei Handgriffe.
+1. Die Registerzuordnung zu den App-Kanälen PV1–PV3 ist am 14:40-Wertevergleich
+   belegt (Abweichung 0,2 / 2,2 / 1,8 %), PV4 ergibt sich als Restwert.
+2. Der Betreiber hat die Reihenfolge auf dem Dach angegeben und ein Foto
+   geliefert: „ganz nahe PV4, ganz weit weg PV1", Blickrichtung der Aufnahme
+   **nach Westen**. Nahes liegt damit östlich von Fernem.
+
+| Register | App-Kanal | Lage in der Reihe |
+|---|---|---|
+| 10167 / 10168 | PV1 | westlichstes Modul |
+| 10169 / 10170 | PV2 | |
+| 10171 / 10172 | PV3 | |
+| Restwert | PV4 | östlichstes Modul |
+
+**Sicherheit:** Die Registerzuordnung ist gemessen. Die Zuordnung der App-Kanäle
+zu den Dachpositionen ist eine **Angabe des Betreibers aus der Installation**,
+keine Messung. Die unabhängige Gegenprobe wäre weiterhin, ein Modul kurz
+abzudecken und zu beobachten, welcher Strom einbricht.
+
+### Folge für die Verschattungshypothese
+
+Die ursprüngliche Annahme — eine Schattenkante wandert nachmittags von
+West/Südwest über die Reihe, der Verursacher steht westlich — ist mit dieser
+Zuordnung **nicht haltbar**. Die Messdaten zeigen das Gegenteil:
+
+- **14:40**, Sonne bei Azimut 206°, Elevation 51,1°: Das **Ostende** ist
+  verschattet. PV3 auf 65 %, PV4 auf 14 %; PV1 und PV2 laufen voll. Ein Schatten
+  bei diesem Sonnenstand zeigt nach Nordnordost — das Hindernis steht also
+  **südsüdwestlich des Ostendes** und nah, denn es trifft nur zwei von vier
+  Modulen.
+- **14:40 bis 18:00**: PV4 steigt von 60 auf 130 W, während die Gesamtleistung
+  von 1160 auf 550 W fällt. Wandert die Sonne nach Westen, dreht der Schatten
+  desselben Hindernisses nach Osten und läuft über die Dachkante hinaus. Das
+  östlichste Modul kommt frei — gegen den Trend der Anlage.
+
+**Prüfbare Vorhersage:** Morgens muss es umgekehrt sein. Sonne im Osten, Schatten
+nach Westen — PV1 und PV2 starten schwach, PV3 und PV4 stark. Trifft das nicht
+zu, ist die Deutung falsch.
 
 ---
 

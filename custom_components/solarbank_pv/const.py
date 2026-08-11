@@ -48,9 +48,21 @@ MODULE_VOC_STC: Final = 39.90       # V bei 25 Grad C
 MODULE_TEMP_COEFF: Final = 0.0025   # 1/K, gilt fuer Voc wie Vmp
 CELL_OVER_AMBIENT: Final = 25.0     # K, aus NMOT abgeleitet
 
-# Unterhalb dieses Stroms ist der Arbeitspunkt nicht aussagekraeftig; die
-# Zelltemperatur-Rueckrechnung wird dann unterdrueckt statt zu luegen.
-MIN_CURRENT_FOR_TEMP: Final = 0.5   # A
+# Untergrenzen fuer abgeleitete Groessen.
+#
+# MIN_CURRENT_FOR_TEMP: Die Rueckrechnung der Zelltemperatur ueber Vmp(T)
+# unterstellt einen Arbeitspunkt nahe Nennbedingungen. Bei schwacher Einstrahlung
+# wandert der MPP relativ zu Vmp, und die Formel liefert Unsinn - gemessen am
+# 11.08.2026 um 17:52: 35,3 V bei 3,44 A ergaben rechnerisch minus 0,6 Grad C.
+# Ein Drittel des Nennstroms (Imp = 15,07 A) ist die Grenze, ab der die
+# Rueckrechnung belastbar ist. Darunter liefert der Sensor None statt einer
+# erfundenen Temperatur.
+MIN_CURRENT_FOR_TEMP: Final = 5.0   # A
+
+# Fuer das Stromverhaeltnis genuegt eine viel niedrigere Schranke: dort geht es
+# nur darum, eine Division durch nahezu null zu vermeiden, nicht um die
+# Gueltigkeit eines physikalischen Modells.
+MIN_CURRENT_FOR_RATIO: Final = 0.5  # A
 
 # Verschattungsschwellen mit Hysterese, bezogen auf den Median der uebrigen
 # Straenge. Unter 0.60 gilt als verschattet, erst ueber 0.70 wieder als frei.
