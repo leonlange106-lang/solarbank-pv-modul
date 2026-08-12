@@ -91,10 +91,16 @@ GROUPS: Final[dict[str, Group]] = {
     for g in (
         Group("strings", "Strangdaten", 30, True),
         Group("limits", "Leistungsgrenzen", 300, True),
-        Group("grid", "Netzqualitaet", 60, False),
-        Group("clock", "Geraetezeit", 3600, False),
-        Group("mirror", "Redundanz zur offiziellen Integration", 30, False),
-        Group("unknown", "Unbestimmt", 300, False),
+        # Ab 12.08.2026 alle Gruppen aktiv: die unbestimmten Register sollen im
+        # Recorder mitlaufen, damit sich ihre Funktion aus dem Langzeitverlauf
+        # erschliessen laesst. Genau so wurde 10254/10255 identifiziert - erst
+        # der Vergleich von Lade- und Entladeregime hat es entschieden.
+        # Die Deutungssicherheit steckt weiterhin im certain-Flag je Reg, nicht
+        # in der Sichtbarkeit.
+        Group("grid", "Netzqualitaet", 60, True),
+        Group("clock", "Geraetezeit", 3600, True),
+        Group("mirror", "Redundanz zur offiziellen Integration", 30, True),
+        Group("unknown", "Unbestimmt", 300, True),
     )
 }
 
