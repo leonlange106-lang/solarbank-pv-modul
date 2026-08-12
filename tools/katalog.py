@@ -17,6 +17,23 @@ QUELLE = pathlib.Path(__file__).parent / "pv4_evening.jsonl"
 ZIEL = pathlib.Path(r"C:/Users/User/solarbank-pv-modul/docs/UNBESTAETIGT.md")
 
 
+def _pfade() -> tuple[pathlib.Path, pathlib.Path]:
+    """Quelle und Ziel, per Kommandozeile ueberschreibbar.
+
+    Ohne Argumente bleibt es beim bisherigen Verhalten. Mit Argumenten laesst
+    sich der Katalog aus einem anderen Messlauf bauen, ohne das committete
+    Dokument zu ueberschreiben - noetig, um zwei Betriebsregime (Laden gegen
+    Entladen) nebeneinander zu vergleichen.
+    """
+    import argparse
+
+    ap = argparse.ArgumentParser(description="Registerkatalog bauen")
+    ap.add_argument("--quelle", default=str(QUELLE), help="jsonl des Messlaufs")
+    ap.add_argument("--ziel", default=str(ZIEL), help="Markdown-Ausgabe")
+    a = ap.parse_args()
+    return pathlib.Path(a.quelle), pathlib.Path(a.ziel)
+
+
 def i32(regs: dict, addr: int) -> int | None:
     hi, lo = regs.get(str(addr)), regs.get(str(addr + 1))
     if hi is None or lo is None:
@@ -97,8 +114,9 @@ LOWWORD = {10003, 10005, 10009, 10011, 10013, 10019, 10037, 10039, 10061,
 
 
 def main() -> None:
+    quelle, ziel = _pfade()
     rows = []
-    for line in QUELLE.open(encoding="utf-8"):
+    for line in quelle.open(encoding="utf-8"):
         if not line.strip():
             continue
         r = json.loads(line)
@@ -205,8 +223,8 @@ def main() -> None:
     add("   entschieden: In 24 solchen Schritten folgte es 24 mal der AC-Leistung und null")
     add("   mal dem PV4-Restwert.\n")
 
-    ZIEL.write_text("\n".join(L), encoding="utf-8")
-    print(f"geschrieben: {ZIEL}")
+    ziel.write_text("\n".join(L), encoding="utf-8")
+    print(f"geschrieben: {ziel}")
     print(f"  gedeutet {len(bek)} · unbestaetigt beweglich {len(var)} · "
           f"konstant ungleich null {len(nz)} · konstant null {len(null)}")
 
