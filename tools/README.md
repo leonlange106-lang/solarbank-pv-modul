@@ -57,11 +57,17 @@ Beispielzeilen:
 
 ## Zwei Fallstricke, die Ergebnisse verfälscht haben
 
-**Die Strangströme sind INT16, nicht UINT16.** `pv4_evening.py` rechnet
-10167–10172 vorzeichenlos und produziert dadurch in der Dämmerung Leistungen
-von +20 000 W und Restwerte von −20 000 W. Wer `resid` aus
-`pv4_evening.jsonl` ungefiltert auswertet, bekommt Unsinn. Korrektur:
-`v - 65536 if v >= 32768 else v`. Belegt in `docs/PV4-SUCHE.md` §7.2.
+**Die Strangströme sind INT16, nicht UINT16** — im Skript behoben, in alten
+Daten nicht. `pv4_evening.py` rechnete 10167–10172 zunächst vorzeichenlos und
+produzierte dadurch in der Dämmerung Leistungen von +20 000 W und Restwerte
+von −20 000 W. `derive()` verwendet inzwischen `to_int16()`, der Fehler ist
+also raus (Commit `d6dabb4`).
+
+**Aber:** Jede `pv4_evening.jsonl` aus einem Lauf **vor** dieser Korrektur
+enthält die falschen Werte weiterhin, denn `resid` wird beim Schreiben
+gerechnet, nicht beim Lesen. Wer solche Altdaten auswertet, muss Punkte mit
+`|resid| > 1000` verwerfen oder aus `regs` neu rechnen. Belegt in
+`docs/PV4-SUCHE.md` §7.2.
 
 **Positivkontrollen müssen einzeln lesbar sein.** Das Gerät validiert die
 Kombination aus Startadresse und Count, nicht jede Adresse für sich. 10173–10175
