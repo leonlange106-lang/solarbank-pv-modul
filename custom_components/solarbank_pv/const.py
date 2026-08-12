@@ -129,7 +129,10 @@ BLOCKS: Final[dict[str, tuple[Block, ...]]] = {
         Block(10018, 2, proven=False),
         Block(10040, 32),
         Block(10208, 32),
-        Block(10250, 1),
+        # 10250:8 deckt 10250-10257 ab und liefert damit auch das INT32-Paar
+        # 10254/10255 in derselben Anfrage. Belegt durch 729 fehlerfreie
+        # Messpunkte der Laeufe vom 11. und 12.08. (tools/pv4_evening.py:57).
+        Block(10250, 8),
         Block(10262, 2, proven=False),
         Block(10264, 2, proven=False),
         Block(32768, 32),
@@ -261,6 +264,16 @@ REGISTERS: Final[tuple[Reg, ...]] = (
     Reg("rated_energy_mb", 10250, "u16", 0.1, "Nennkapazitaet (Modbus)",
         "mirror", True, unit="kWh", device_class="energy_storage",
         state_class=None, icon="mdi:battery"),
+    # 10254/10255 ist die Batterieleistung mit umgekehrtem Vorzeichen zu
+    # 10008/10009: positiv = laden. Belegt ueber beide Betriebsregime -
+    # 11.08. abends beim Entladen -550..0 W, 12.08. morgens beim Laden
+    # +200..+1120 W gegen eine Batterieleistung von -1170..-270 W.
+    # 10254 ist das Highword und steht bei positiven Werten konstant auf 0,
+    # bei negativen auf 0xFFFF; der fruehere Befund "springt zwischen 0 und
+    # 65535" war genau dieser Vorzeichenwechsel.
+    Reg("battery_charge_power_mb", 10254, "i32", 1.0,
+        "Batterieladeleistung (Modbus)",
+        "mirror", True, icon="mdi:battery-sync", **_W),
     Reg("cumulative_charge_mb", 10262, "u32", 0.1, "Ladeenergie kumuliert (Modbus)",
         "mirror", True, icon="mdi:battery-plus", **_KWH),
     Reg("cumulative_discharge_mb", 10264, "u32", 0.1,
