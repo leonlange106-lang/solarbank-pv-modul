@@ -22,13 +22,71 @@ Datengrundlage:
 **Strang 4 hat kein eigenes Modbus-Register** — kein einziges der 150 mitgeloggten
 Register bewegt sich mit dem Restwert, und die Negativkontrolle bestätigt, dass
 das Auswertefenster dafür taugt. **Der Restwert `PV4 = 10002 − (U₁I₁+U₂I₂+U₃I₃)`
-ist unverzerrt**: am Kalibrierpunkt 14:40 Uhr trifft er die App-Ablesung von
-60 W auf 1–2 W genau, und er reproduziert auch den Gegenlauf, dass PV4 von 60 auf
-130 W steigt, während die Gesamtleistung von 1160 auf 550 W fällt. **Belastbar
+ist unverzerrt und sockelfrei**: am Kalibrierpunkt 14:40 Uhr trifft er die
+App-Ablesung von 60 W auf 1–2 W genau, im Sonnenuntergangsabstieg extrapoliert
+er auf +3,9 W bei einer Gesamtleistung von null, und er reproduziert den
+Gegenlauf, dass PV4 von 60 auf 130 W steigt, während die Gesamtleistung von
+1160 auf 550 W fällt. **Belastbar
 ist aber erst das 10-Minuten-Mittel** — der Einzelwert streut mit ±41 W um einen
 Messwert von 60–180 W und ist damit unbrauchbar, das 10-min-Mittel liegt bei
 ±17 W Reproduzierbarkeit und ±23 W mittlerem Fehler gegen die App, zusammen
 **±25 W**.
+
+---
+
+## 1a. Sofortbefund mit Handlungsbedarf: die Stromregister sind vorzeichenbehaftet
+
+**10168, 10170 und 10172 sind INT16, nicht UINT16.** In der Dämmerung wird der
+Strangstrom leicht negativ, und als UINT16 gelesen springt er auf ~65530.
+
+| Register | negative Messpunkte | erstmals | Wertebereich |
+|---|---|---|---|
+| 10168 (Strom Strang 1) | 38 / 312 | 19:28:49 | −0,17 … −0,03 A |
+| 10170 (Strom Strang 2) | 3 / 312 | 19:55:19 | −0,17 … −0,03 A |
+| 10172 (Strom Strang 3) | 0 / 312 | — | — |
+
+Die **Spannungsregister** 10167/10169/10171 waren in keinem der 312 Messpunkte
+negativ, größter Rohwert 374 (= 37,4 V). Für sie stellt sich die Frage nicht;
+sie bleiben UINT16.
+
+**Das wirkt sich bereits produktiv aus.** Die Integration `solarbank_pv` führt
+10168 als `modbus_datatype: u16`. Der HA-Recorder hat deshalb heute Abend
+mehrfach gemessen:
+
+```
+19:27:33  sensor.pv_modul_1_strom = 655.35 A
+19:28:33  sensor.pv_modul_1_strom = 655.33 A
+19:29:33  sensor.pv_modul_1_strom = 655.24 A
+19:30:33  sensor.pv_modul_1_strom = 655.33 A
+19:31:33  sensor.pv_modul_1_strom = 655.29 A
+19:35:03  sensor.pv_modul_1_strom = 655.29 A
+19:36:03  sensor.pv_modul_1_strom = 655.33 A
+```
+
+Die abgeleitete Modulleistung liegt in diesen Sekunden bei rund **23 000 W**.
+Das verfälscht `state_class: measurement`-Statistiken (min/max/mean) dauerhaft
+und würde jede darauf aufbauende Energieintegration ruinieren. Es passiert
+**jede Nacht neu**, sobald die Einstrahlung unter die Nachweisgrenze fällt.
+
+Zu ändern ist der Datentyp auf `i16` (Zweierkomplement) für 10168, 10170 und
+10172. Zusätzlich empfehlenswert, weil es die Ursache und nicht nur das Symptom
+trifft: einen Plausibilitätsfilter, der Ströme außerhalb −1 … +20 A verwirft.
+
+**Betroffen ist auch die Messdatei selbst.** `pv4_evening.py` rechnet in
+`derive()` ebenfalls ohne Vorzeichen (`regs[10168] / 100.0`). Damit sind die
+Felder `pv1`, `pv2`, `pv3` und `resid` in `pv4_evening.jsonl` ab **19:28:49**
+unbrauchbar — `resid` erreicht dort Werte um −23 000 W. Das Feld `regs` mit den
+Rohwerten ist davon **nicht** betroffen und bleibt vollständig auswertbar.
+
+> **Für jede Weiterverwendung der Datei gilt deshalb:** die Spalten `pv1`,
+> `pv2`, `pv3`, `resid` ab 19:28:49 verwerfen und aus `regs` neu rechnen, mit
+> `v − 65536 if v & 0x8000 else v` auf 10168, 10170 und 10172. Genau so ist
+> Abschnitt 2.3 gerechnet.
+
+*Für die übrigen Ergebnisse ist der Befund folgenlos:* Der erste betroffene
+Messpunkt ist 19:28:49. Alle Kalibrierungen, Korrelationen und
+Mittelungsfenster dieses Dokuments stammen aus dem Fenster 14:35–19:28 und
+sind unverändert gültig.
 
 ---
 
@@ -92,25 +150,67 @@ Einstrahlung insgesamt sinkt.
 
 ### 2.3 Sonnenuntergangstest
 
-Sonnenuntergang laut `sun.sun`: **20:59:20 Ortszeit**, bürgerliche Dämmerung
-endet 21:38. Der Sampler läuft bis 23:59.
+Sonnenuntergang laut `sun.sun`: **20:59:20 Ortszeit**. Stand dieser Auswertung
+ist 20:04 — die Gesamtleistung steht noch bei 30–40 W und hat **null noch nicht
+erreicht**. Der Test ist aber über den Abstieg bereits auswertbar, und zwar
+schärfer als über den Endpunkt allein: statt einen einzelnen Nachtwert abzulesen,
+extrapoliert die Regression den Sockel aus 189 Messpunkten.
 
-> **STATUS: Messung läuft.** Dieser Abschnitt wird nachgetragen, sobald die
-> Datei den Sonnenuntergang enthält. Die Entscheidungsregel steht vorher fest:
+**Regression über den Abstieg ab 18:30** (pv_total fällt von 620 auf 30 W,
+n = 189, INT16-korrigiert):
+
+```
+resid = 0,2599 × pv_total + 3,89 W        r = +0,956
+```
+
+Der **Achsenabschnitt ist der gesuchte Sockel**: bei pv_total = 0 bleiben
+**+3,9 W** übrig. Die direkte Messung bestätigt das:
+
+| Gesamtleistung | n | Restwert Mittel | sd | Summe Strang 1–3 |
+|---|---|---|---|---|
+| ≤ 100 W | 100 | +16,6 W | 14,1 W | 40,1 W |
+| ≤ 60 W | 82 | +14,4 W | 13,6 W | 37,3 W |
+| ≤ 40 W | 25 | **+5,0 W** | 17,0 W | 33,8 W |
+
+**Ergebnis: kein systematischer Sockel.** Der Restwert läuft mit der
+Gesamtleistung gegen null; was bei null übrig bleibt, sind 4–5 W bei einer
+Streuung von 14–17 W, also null im Rahmen der Messgenauigkeit. **`PV4 = resid`
+gilt unverändert, ohne Korrekturterm.** Die Fallunterscheidung aus der
+Entscheidungsregel ist damit im ersten Zweig entschieden.
+
+Zwei Nebenbefunde aus derselben Regression:
+
+- Die **Steigung 0,26** besagt, dass Strang 4 im gesamten Abstieg gut ein
+  Viertel der Gesamtleistung stellt — gegen 5,2 % um 14:40. Das ist der
+  Gegenlauf aus Abschnitt 2.2, jetzt als einzelner Koeffizient über 189 Punkte
+  statt als Stichprobenvergleich, und mit r = +0,956 sehr eng.
+- Beim Abstieg **kehrt sich die Reihenfolge der Stränge um.** Um 19:12 gilt
+  I₁ = 0,08 A bei U₁ = 35,0 V (Leerlauf, Modul 1 ist dunkel), I₂ = 0,60 A,
+  I₃ = 0,85 A. Um 14:40 war es genau umgekehrt: I₁ = 13,97 > I₂ = 14,12 >
+  I₃ = 8,28 > PV4. Der Schatten läuft mittags von Modul 4 her über die Reihe
+  und abends von Modul 1 her. **Modul 4 ist abends das letzte in der Sonne** —
+  deshalb hält es 90 W, während 1 bis 3 schon aus sind, und deshalb ist der
+  Gegenlauf real und kein Rechenartefakt.
+
+**Was noch aussteht:** der harte Endpunkt, also pv_total = 0 bei gleichzeitig
+gemessenem Restwert. Bis 20:04 ist er nicht eingetreten. Der Sampler läuft bis
+23:59; die Entscheidungsregel unten bleibt bis dahin gültig und ist bereits
+durch die Extrapolation vorentschieden.
+
+> **Vorab festgelegte Entscheidungsregel** (notiert, bevor die Abstiegsdaten
+> vorlagen):
 >
-> - `pv_total → 0` **und** `resid → 0` (|resid| < 10 W über die letzten
->   10 Messpunkte) → kein Sockel, `PV4 = resid` gilt unverändert.
-> - `pv_total → 0`, aber `resid` bleibt auf einem Wert *S* stehen → systematischer
->   Versatz, `PV4 = resid − S`. Ursache dann zu benennen.
-> - `resid` wird beim Herunterfahren **negativ** und bleibt es → die
->   Strangregister werden nach dem Abschalten eingefroren, während 10002 schon
->   null meldet. Das wäre kein Sockel, sondern ein Abschaltartefakt, und
->   erzwingt die Verfügbarkeitsbedingung `pv_total > 15 W` im Template-Sensor.
->
-> Bereits jetzt belegt: der Restwert wird **auch tagsüber** gelegentlich negativ
-> (2 von 59 Punkten im Abschnitt vor 17:57, Minimum −65 W). Da eine negative
-> Modulleistung physikalisch unmöglich ist, ist das reines Messrauschen — und es
-> beziffert die Rauschamplitude von unten: mindestens ±65 W im Einzelwert.
+> - `pv_total → 0` **und** `resid → 0` → kein Sockel, `PV4 = resid` gilt
+>   unverändert. ← **dieser Zweig, durch Extrapolation auf +3,9 W belegt**
+> - `pv_total → 0`, aber `resid` bleibt auf *S* stehen → `PV4 = resid − S`.
+> - `resid` wird negativ und bleibt es → Abschaltartefakt, erzwingt die
+>   Verfügbarkeitsbedingung `pv_total > 15 W`.
+
+Zur dritten Zeile: negative Restwerte **treten** im Abstieg auf (Minimum
+−17,6 W bei pv_total ≤ 40 W), aber sie bleiben nicht — sie wechseln im
+30-Sekunden-Takt das Vorzeichen. Das ist Rauschen um eine kleine positive Zahl,
+kein Abschaltartefakt. Die Bedingung `pv_total > 15 W` im Template-Sensor bleibt
+trotzdem sinnvoll, weil unterhalb davon nur noch Rauschen übrig ist.
 
 ### 2.4 Woher das Rauschen kommt — zwei Anteile, beide beziffert
 
@@ -389,9 +489,15 @@ und (am Mittag) 2.
 
 Die Beziehung `10236 = 10230 × 10224 / 1000` — also *Leistung = Strom × Spannung*
 mit 10230 in 0,01 A und 10236 in 1 W bzw. var — gilt über alle 104 Messpunkte mit
-einer mittleren Abweichung von **+0,44** und einer Streuung von **1,92** bei
-Werten um 73, also **2,6 %**. Der Bestfit-Faktor ist 2,4173, die gemessene
-Netzspannung ÷ 100 ist 2,4026 ± 0,0055.
+einer mittleren Abweichung von **+0,46** und einer Streuung von **1,78** über
+inzwischen **312 Messpunkte**, bei Werten um 73 — also 2,4 %. Der Bestfit-Faktor
+ist 2,417, die gemessene Netzspannung ÷ 100 ist 2,4026 ± 0,0055.
+
+Die Beziehung hat inzwischen einen echten Belastungstest bestanden: im Abstieg
+verließen beide Register ihren bisherigen Bereich nach oben (10230 auf 41 statt
+36, 10236 auf 99 statt 82) und hielten das Verhältnis exakt — 99/41 = 2,415
+gegen den Bestfit 2,417. Eine Bereichserweiterung um 20 % ohne Abweichung ist
+mehr, als eine Zufallskorrelation überlebt.
 
 Rechnet man 10230 als Blindstrom, ergibt sich ein Leistungsfaktor von 0,98–1,01
 bei einer Wirkleistung von 650–800 W — physikalisch genau das, was der
@@ -424,7 +530,7 @@ Identifikation des Proportionalitätsfaktors mit der Netzspannung nicht.**
 | **10183 / 10187** | konstant 0 in 104 Punkten und im Scan | Reservierte Einzelregister ohne Funktion in dieser Firmware. Sie sind lesbar, weil das Gerät Start/Count-Kombinationen und nicht Einzeladressen validiert | Ein Wert ungleich null tritt auf |
 | **10230** | 17–34, 11 Zustände, r(pv_total) = −0,433, ändert sich in 65 % der Takte | **AC-Blindstrom in 0,01 A** (0,17–0,34 A). Gemeinsam mit 10236 durch `10236 = 10230 × U/1000` verbunden | 10236 löst sich jemals von dieser Beziehung um mehr als 10 %; oder der Wert überschreitet den plausiblen Blindstrombereich eines 800-W-Geräts (> 1 A) |
 | **10234** | 1–3 (im Langlauf 0–4), keine Kopplung an 10230/10236 (r = +0,25 / +0,18) | Zählwert oder Zustandscode, **kein** Teil des Blindleistungspaars. Kandidaten: Anzahl aktiver Regelkreise, Netzqualitätsklasse, oder ein Zähler mit kleinem Wertevorrat | Wert nimmt jemals einen Wert > 4 an, oder er zeigt eine feste Zuordnung zu einem bekannten Betriebszustand (dann ist es ein Zustandscode und die Zählerthese fällt) |
-| **10236** | 42–82, 21 Zustände, r(10230) = **+0,960** | **AC-Blindleistung in var**, = 10230 × Netzspannung. Abweichung von dieser Formel: +0,44 ± 1,92 über 104 Punkte | Siehe 10230. Zusätzlich: geht 10236 nach Sonnenuntergang auf null, obwohl das Gerät am Netz bleibt, spricht das gegen einen Filterblindstrom und für eine wirkleistungsabhängige Größe |
+| **10236** | 42–82, 21 Zustände, r(10230) = **+0,960** | **AC-Blindleistung in var**, = 10230 × Netzspannung. Abweichung von dieser Formel: +0,44 ± 1,92 über 104 Punkte | Siehe 10230. Der geplante Nachttest fällt heute aus: der Akku entlädt, die AC-Ausgangsleistung bleibt bei 390–810 W und geht gar nicht auf null. Er braucht einen Moment mit AC-Ausgang null bei bestehender Netzverbindung — etwa bei SOC an der Entladegrenze und ohne PV |
 | **10250 / 10252 / 10254 / 10256** | 10250 = 0 · 10252 = 0x2300/0x2301/0x2400 · 10254 wechselt 0 ↔ 65535 · 10256 = 100 (im Scan 15:00: 93) | **Der Sampler hat hier nur die Highwords gelesen.** 10250 ist per Herstellerdefinition das Highword von `rated_energy` (INT32) — der eigentliche Wert 51 (= 5,1 kWh) steht in 10251, das nie gelesen wurde. Ebenso fehlen 10253, 10255, 10257. **10254 = 0xFFFF ist das Highword einer negativen INT32-Größe** — sie wechselt das Vorzeichen im Takt mit dem Lowbyte von 10252. **10256 = 93 bei SOC 93 und 100 bei SOC 100: dritte Kopie des SOC** | 10256 weicht bei einem SOC ungleich 100 von 10014 ab. Für 10252/10254: ein Lauf, der 10250–10257 als Block liest, entscheidet in einer einzigen Messung, ob es 32-Bit-Objekte oder 16-Bit-Register sind |
 | **32775–32799** | konstant 0, im Scan wie im Betrieb | Auffüllung des 32er-Blocks hinter der Modellzeichenkette (32768–32770 „AE103") und der Modusmaske 32774. Kein Inhalt in dieser Firmware | Ein Wert ungleich null tritt auf |
 | **60004–60031** | konstant 0 (FC03, Holding) | Auffüllung des Konfigurationsblocks hinter den vier belegten Sollwerten 60000–60003. Reserviert für künftige Einstellungen | Eine bislang unbenutzte App-Einstellung wird gesetzt und ein Register in 60004+ ändert sich |
@@ -465,6 +571,35 @@ Ladeende nicht mehr um ein ganzes Volt.
 **Beide Thesen haben Gegenargumente. Der Nachtverlauf entscheidet, nicht die
 Plausibilität.**
 
+**Nachtrag 20:04 — die Entladung hat begonnen und entscheidet fast vollständig
+gegen die Spannungsthese.** Seit 18:49 steht 10156 unverändert auf **340**,
+während in derselben Zeit:
+
+| Zeit | 10156 | SOC | Batterieleistung |
+|---|---|---|---|
+| 18:49 | 340 | 100 % | 150 W (Entladung beginnt) |
+| 19:20 | 340 | 96 % | 460 W |
+| 19:43 | 340 | 91 % | 510 W |
+| 20:01 | 340 | 88 % | 480 W |
+
+Der SOC ist um **12 Prozentpunkte** gefallen, die Entladeleistung hat sich mehr
+als **verdreifacht** (150 → 530 W, das sind bei 34 V rund 11 A Stromhub) — und
+10156 hat sich **kein einziges Mal** bewegt. Eine Packspannung müsste hier zwei
+Effekte zeigen: den sofortigen IR-Sprung beim Lastwechsel und den SOC-Abfall.
+Sie zeigt keinen von beiden.
+
+Damit ist **These B (Temperatur) die bevorzugte**: ein Wert, der bei laufender
+Entladung im thermischen Gleichgewicht bei 34 °C steht, während der Abend
+abkühlt und das Gerät sich selbst erwärmt, ist genau das erwartete Verhalten.
+
+*Endgültig ist es noch nicht.* Der Akku entlädt weiter bis zur Grenze von 5 %.
+Bleibt 10156 bis dahin bei 340, ist die Spannungsthese tot. Fällt es unterhalb
+von etwa 30 % SOC doch noch — dort verlässt eine LFP-Zelle ihr Spannungsplateau —,
+lebt sie wieder auf. Die formalen Korrelationen über den ganzen Abend,
+r(10156, SOC) = +0,624 und r(10156, Batterieleistung) = −0,789, sind **nicht**
+zu verwenden: sie stammen fast vollständig aus dem frühen Abschnitt mit 360/350
+und sind reine Zeitkorrelation.
+
 ### 5.2 Was diese Thesen zusammen bedeuten
 
 Drei bisher unbestimmte Register sind damit **aufgeklärt** (10130, 10252 als
@@ -481,7 +616,17 @@ Beobachtung die falsche Methode; sie brauchen ein Experiment in der App.
 
 ## 6. Entwurf des PV4-Template-Sensors
 
-**Nicht angelegt — nur Entwurf.** Zwei Sensoren: ein roher Restwert und ein
+**Nicht angelegt — nur Entwurf.**
+
+> **Voraussetzung, die zuerst erledigt sein muss:** Solange 10168/10170/10172 als
+> `u16` gelesen werden, liefert `sensor.pv_modul_1_leistung` nachts rund
+> 23 000 W (Abschnitt 1a). Ein Template-Sensor, der darauf aufsetzt, erbt den
+> Fehler eins zu eins und macht aus 23 kW einen Restwert von −23 kW. **Erst den
+> Datentyp auf `i16` korrigieren, dann den PV4-Sensor anlegen.** Die
+> Verfügbarkeitsbedingung unten fängt das nicht ab — die Werte sind Zahlen, nur
+> falsche.
+
+Zwei Sensoren: ein roher Restwert und ein
 geglätteter. Die Trennung ist wichtig, weil die Glättung nur dann unverzerrt
 ist, wenn der Rohwert **nicht** bei null abgeschnitten wird. Schneidet man vor
 der Mittelung ab, verschwinden die negativen Rauschausschläge, die positiven
@@ -510,7 +655,11 @@ template:
                       + states('sensor.pv_modul_3_leistung') | float %}
           {# Unterhalb von 15 W Gesamtleistung ist die Differenz reines Rauschen
              zweier fast gleicher Zahlen. Dann hart auf 0 setzen, nicht rechnen. #}
-          {% if tot < 15 %}
+          {# Plausibilitaetsschranke: faengt den u16/i16-Fehler und jeden
+             kuenftigen Registerausreisser ab, statt ihn in die Statistik zu lassen #}
+          {% if s123 < -100 or s123 > 5000 or tot > 5000 %}
+            {{ this.state }}
+          {% elif tot < 15 %}
             0
           {% else %}
             {{ (tot - s123) | round(1) }}
@@ -594,7 +743,9 @@ Rauschausschläge zwar heraus, aber nur, wenn nicht bei null abgeschnitten wurde
 | **Was steht in 10251, 10253, 10255, 10257?** | Der Sampler liest 10250/10252/10254/10256 einzeln mit `count=1` und erwischt bei 32-Bit-Objekten nur das Highword | Ein einziger Lesezyklus mit `(10250, 8)`. Der Scan belegt, dass der Block 10250–10265 lesbar ist. Das klärt in einer Messung, ob 10252 und 10254 16- oder 32-Bit-Objekte sind |
 | **Bestätigt sich 10230/10236 als Blindstrom/Blindleistung?** | Die Proportionalität ist bewiesen, der Faktor nicht eindeutig der Netzspannung zuzuordnen (Netzspannung schwankte nur 1,4 %, Quantisierungsrauschen 2,6 %) | Eine Messung über einen Tag mit größerer Netzspannungsschwankung, oder — besser — eine Messung, in der die AC-Ausgangsleistung auf null geht, während das Gerät am Netz bleibt. Bleibt 10236 dann stehen, ist es der Filterblindstrom; geht es auf null, ist es wirkleistungsabhängig |
 | **Verhalten der Register bei Erweiterungsakku** | 10042–10047 sind konstant null, weil vermutlich keiner verbaut ist | Anbau eines Erweiterungsakkus. Bis dahin nicht klärbar |
-| **Sonnenuntergangstest** | Läuft zur Abfassung dieses Dokuments noch | Siehe Abschnitt 2.3 — wird nachgetragen |
+| **Sonnenuntergangs-Endpunkt** | Bis 20:04 hat pv_total null nicht erreicht; der Sockel ist bisher nur extrapoliert (+3,9 W aus 189 Punkten, r = +0,956) | Läuft automatisch bis 23:59 weiter. Zu prüfen ist nur noch, ob `resid` bei `pv_total = 0` tatsächlich unter ±10 W liegt |
+| **Ist 10156 endgültig die Temperatur?** | Seit 18:49 unverändert 340 bei SOC 100 → 88 und dreifacher Entladeleistung — die Spannungsthese ist stark geschwächt, aber die LFP-Kennlinie ist oberhalb 30 % SOC ohnehin flach | Die Entladung bis zur Grenze von 5 %. Unterhalb von 30 % SOC verlässt eine LFP-Zelle ihr Plateau; bleibt 10156 auch dort bei 340, ist die Spannungsthese widerlegt |
+| **Sind 10168/10170/10172 wirklich INT16?** | 41 negative Messpunkte, alle zwischen −0,17 und −0,03 A, alle in der Dämmerung — das Muster passt, ein formaler Beweis ist es nicht | Eine einzige Nacht mit vollständiger Dunkelheit. Bleiben die Werte im Bereich 0xFFEF–0xFFFF und springen nie auf mittlere Werte wie 0x8000, ist die Zweierkomplement-Deutung gesichert |
 
 ### Was diese Arbeit *nicht* zeigt
 

@@ -1,469 +1,597 @@
 # PV4-Suche: der lückenlose Einzeladress-Nachweis
 
-Stand: 11.08.2026, 19:25 Uhr. Gerät AE103, SN …441, Firmware 1.0.2.30.
+Stand: 12.08.2026, 09:00 Uhr. Gerät AE103, SN …441, Firmware 1.0.2.30.
+
+> **Der Adressraum ist vollständig geprüft.** Alle 65 536 Adressen einzeln mit
+> `count=1`, davon 63 528 im Nachtlauf vom 11.08. 20:18 bis 12.08. 03:21 Uhr —
+> **null neue gültige Register**. Eine Gegenprobe über 500 Adressen unter
+> laufender Einspeisung am 12.08. um 08:53 Uhr bestätigt das (Abschnitt 9.2a).
+> Die Kernaussage dieses Dokuments steht damit nicht mehr auf drei Bereichen,
+> sondern auf dem gesamten 16-Bit-Adressraum.
+
 Auftrag: lückenlos nachweisen, ob die Solarbank ein eigenes Register für den
 vierten PV-Strang hat, und dabei die methodische Lücke des bisherigen
 32er-Block-Scans schließen.
+
+Der Sweep lief von 19:38 bis 19:54 Uhr, nachdem der Auftraggeber die
+Integration `solarbank_pv` deaktiviert und damit einen Verbindungsplatz
+freigegeben hatte. Ausschließlich lesend, ausschließlich FC03 und FC04.
 
 ---
 
 ## 1. Kurzantwort
 
-**Die methodische Lücke ist bestätigt und exakt beziffert — aber sie konnte
-nicht geschlossen werden, weil das Gerät keine vierte Modbus-Sitzung zulässt.**
+**Der methodische Einwand des Auftraggebers war berechtigt — er hat zwölf
+bisher unbekannte Register zutage gefördert. Ein Register für Strang 4 ist
+nicht darunter.**
 
-Drei Aussagen, in der Reihenfolge ihrer Belastbarkeit:
+1. **Die Lücke war real und ist jetzt für die aussichtsreichen Bereiche
+   geschlossen.** 2003 Adressen wurden einzeln mit `count=1` angesprochen.
+   Ergebnis: **131 gültig, 1872 Exception 2, Summe exakt 2003** — kein
+   Transportfehler, keine übersprungene Adresse. Für 10000–11000,
+   32700–33100 und 59900–60500 ist die Aussage jetzt **lückenlos**.
 
-1. **Der Einwand des Auftraggebers ist methodisch berechtigt.** Das Audit des
-   alten Scanlogs bestätigt ihn Zahl für Zahl: von 65 536 Adressen wurden genau
-   **267 jemals einzeln (count=1) angesprochen**. **99,3 % des Adressraums
-   (65 073 Adressen) sind weder als gültig belegt noch jemals einzeln
-   geprüft.** Die fünf isolierten Register 10183, 10187, 10199, 10202 und 10205
-   waren in **jeder** erfolgreichen Anfrage mit count=1 gelesen worden — kein
-   einziger Blockread hat sie je erwischt. Genau dieser Effekt kann weitere
-   Register verbergen.
+2. **Die Methode hat geliefert, was der Blockscan nicht konnte: 12 neue
+   gültige Adressen.** Darunter acht im Smart-Meter-Bereich 10632–10649, den
+   `REGISTER.md` als „durchgehend Exception 2" abgeschrieben hatte — das war
+   ein reiner Blockread-Artefakt. Und zwei Register, die in **keiner**
+   Herstellerdefinition vorkommen: **10006** und **10015**.
 
-2. **Der geplante Sweep ließ sich nicht ausführen.** Das Gerät erlaubt
-   **höchstens drei gleichzeitige Modbus-TCP-Sitzungen**. Alle drei sind von
-   den Clients des Betreibers dauerhaft belegt. Ein vierter Client bekommt den
-   TCP-Handshake, aber auf die erste Modbus-Anfrage sofort ein RST. Beleg und
-   Diagnose in Abschnitt 2. **Damit ist der Nullbefund für die geplanten
-   Bereiche *nicht* erbracht** — er bleibt offen, nicht widerlegt.
+3. **Keine dieser Adressen ist Strang 4.** Der entscheidende Test lief über
+   12 Messpunkte bei fallender Dämmerung: während der PV4-Restwert zwischen
+   −13,7 W und +29,4 W schwankte, blieben 10015 (= 100), 10006 (= 0),
+   10001, 10004 und 10648/10649 **völlig unbewegt**. Die einzigen bewegten
+   Neuzugänge — 10635/10636/10637 — sind laut Hersteller-YAML die
+   **Phasenströme des Smart Meters**, springen ohne jede physikalische
+   Kontinuität (65012 → 2621 → 59769 → 13107) und stehen neben Phasenspannungen
+   von exakt 0 V. Es ist kein Smart Meter angeschlossen; die Register sind
+   uninitialisiert.
 
-3. **Was ohne Gerätezugriff prüfbar war, stützt den bisherigen Befund
-   deutlich.** Der Nachtlauf ist inzwischen auf 229 Messpunkte mit einer
-   PV-Spanne von 60–810 W gewachsen — ein weit besseres Fenster als die
-   frühere Auswertung. In ihm ist **10205 endgültig als AC-Ausgangsstrom
-   erwiesen** (Abschnitt 5.1, 24:0-Entscheidung in den Divergenzfenstern),
-   und **kein** beobachtetes Register bewegt sich mit dem PV4-Restwert.
-   Die Negativkontrolle 10213 liefert r = −0,032, das Fenster ist also sauber.
+4. **Unit 0 ist jetzt geklärt** — 107 Adressen Wert für Wert gegen Unit 1:
+   **103 identisch**, die 4 Abweichungen sind ausschließlich die schnellsten
+   Messgrößen und liegen im Rahmen von 0,35 s realer Änderung. Unit 0 und
+   Unit 1 bedienen dasselbe Registerabbild. Kein zweites Abbild, kein
+   versteckter Strang.
 
-**Für den Auftraggeber in einem Satz:** Sein methodischer Einwand ist richtig
-und bislang unwiderlegt, aber um ihn zu prüfen, muss er mir einen der drei
-Verbindungsplätze freigeben — die Prüfung selbst dauert dann 13 Minuten.
+**Antwort auf die Ausgangsfrage: Strang 4 hat kein eigenes Modbus-Register.**
+Für die drei hier ausgewerteten Bereiche ist das lückenlos belegt und nicht
+mehr nur „nicht gefunden".
+
+**Nachgetragen am 12.08.:** Inzwischen gilt das für den **gesamten
+Adressraum**. Der vollständige Sweep über die restlichen 63 528 Adressen ist
+durchgelaufen und hat **null** gültige Register gefunden (Abschnitt 9.2), die
+Gegenprobe unter Produktion bestätigt es (Abschnitt 9.2a). Der Vorbehalt „rund
+65 000 Adressen bleiben offen" aus der ursprünglichen Fassung ist damit
+eingelöst — es gibt kein ungeprüftes Versteck mehr.
 
 ---
 
-## 2. Der Blocker: das Gerät lässt nur drei Sitzungen zu
+## 2. Bilanz des Sweeps
 
-Das ist ein **neuer Protokollbefund**, der in `REGISTER.md` fehlt und dort
-nachgetragen gehört.
+| Bereich | Adressen | gültig | Exception 2 | Summe | lückenlos? |
+|---|---|---|---|---|---|
+| 10000–11000 | 1001 | 121 | 880 | 1001 | ✅ |
+| 32700–33100 | 401 | 6 | 395 | 401 | ✅ |
+| 59900–60500 | 601 | 4 | 597 | 601 | ✅ |
+| **gesamt** | **2003** | **131** | **1872** | **2003** | ✅ |
 
-### 2.1 Beobachtung
+Kein einziger Transportfehler, kein Timeout, keine Lücke. Jede der 2003
+Adressen hat eine eindeutige Antwort geliefert.
 
-| Versuch | Ergebnis |
-|---|---|
-| `modbus_ro.py probe` (19:07, 19:08) | `ConnectionResetError` nach erfolgreichem TCP-Connect |
-| 20 Versuche im 3-s-Takt (19:09:01–19:09:59) | **0/20 erfolgreich**, durchgehend RST bzw. „peer closed connection" |
-| Dauerretry im 2-s-Takt seit 19:11 | zum Redaktionsschluss **über 400 Versuche, 0 erfolgreich** |
+**Gefundene gültige Adressen, vollständig:**
 
-Der TCP-Handshake gelingt jedes Mal. Erst die erste Modbus-PDU wird mit RST
-beantwortet. Das ist die Signatur eines Geräts, das die Verbindung annimmt,
-aber keinen freien Sitzungsplatz hat.
+```
+10000-10002, 10004, 10006, 10008, 10010, 10012, 10014-10015, 10018, 10022,
+10026, 10030, 10034, 10036, 10038, 10040-10049, 10060, 10064, 10071,
+10073-10075, 10077-10078, 10090-10124, 10130, 10133, 10144-10156,
+10167-10172, 10183, 10187, 10199, 10202, 10205, 10208, 10210, 10212-10213,
+10224, 10227, 10230, 10233, 10235, 10237-10238, 10250, 10252, 10254, 10256,
+10262, 10264, 10632-10637, 10648-10649, 32768-32772, 32774, 60000-60003
+```
 
-### 2.2 Ausschluss der naheliegenden Fehlerquellen
+**Wichtig für das Verständnis der Geräteregeln:** 79 Adressen, die der alte
+Scan als gültig kannte, antworten bei `count=1` **nicht** — darunter 10003,
+10009, 10011, 10013, 10061, 10173–10175, 10209 und die Blöcke 10134–10143,
+10157–10166, 10214–10239. Das ist kein Widerspruch, sondern die bekannte
+Start-/Count-Validierung: diese Adressen sind ausschließlich **innerhalb eines
+Blocks** lesbar, nie einzeln. Ebenso 32773, 32775–32799 und 60004–60031.
 
-- **Kein Problem des Netzwegs.** Dieser Rechner erreicht das Gerät über einen
-  Tailscale-Subnetz-Router (Quelladresse 100.74.115.49), liegt aber
-  gleichzeitig selbst im LAN (192.168.178.129). Ein Bindungstest gegen beide
-  Quelladressen wurde durchgeführt: **beide** werden zurückgesetzt. Es ist
-  also kein Tunnel- und kein NAT-Artefakt.
-- **Keine Begrenzung pro Quell-IP.** Sonst hätte die direkte LAN-Adresse
-  funktioniert, denn von ihr bestand keine Verbindung.
-- **Das Gerät ist gesund.** Der Nacht-Sampler protokolliert im selben Moment
-  lückenlos weiter, und `sensor.…_441_solarstrom` in Home Assistant war bei
-  jeder Kontrolle frisch (19:07:24, 19:17:03 — jeweils Sekunden alt).
-
-### 2.3 Wer die drei Plätze hält
-
-| Client | Verbindungsverhalten | Beleg |
-|---|---|---|
-| `anker_solix_official` | dauerhafte TCP-Sitzung, 5-s-Polling | `modbus_client.py:107`, dokumentiert in `REGISTER.md` §10 |
-| `solarbank_pv` (eigene Integration) | dauerhaft: `if not self.connected: await self.connect()` | `modbus_reader.py:92-93`; Entities um 19:17:03 frisch |
-| Nacht-Sampler `pv4_evening.py` | dauerhaft: verbindet nur, wenn `client.sock is None` | `pv4_evening.py:208-209`; `netstat` zeigt über 14 s denselben Quellport 61381 |
-
-Alle drei halten die Sitzung **dauerhaft** — keiner gibt sie zwischen den
-Abfragen frei. Deshalb öffnet sich auch kein Fenster.
-
-### 2.4 Was ich bewusst *nicht* getan habe
-
-- **Keinen der drei Clients beendet.** Der Nacht-Sampler erhebt gerade den
-  Datensatz, mit dem `PV4.md` die 10156-Frage (Spannung oder Temperatur) und
-  den Sonnenuntergangstest entscheiden will; ihn abzuschalten hätte diese
-  Messung zerstört. Die beiden HA-Integrationen sind Fremdbesitz, und Home
-  Assistant war ausdrücklich nur lesend anzufassen.
-- **Kein Wettlauf um den Verbindungsplatz.** Die offizielle Integration reißt
-  vor **jedem** Schreibvorgang ihre Verbindung ab und baut sie neu auf
-  (`modbus_manager.py:262-277`). Man könnte diesen Millisekundenspalt mit
-  ~3 Verbindungsversuchen/s abpassen und den Platz an sich reißen. Das habe
-  ich unterlassen: Die offizielle Integration führt die Sollwertschreibungen
-  der Nulleinspeisungsregelung aus (10071/10072). Sie für die Dauer eines
-  13-Minuten-Sweeps auszusperren, hätte in die laufende Regelung des
-  Hausspeichers eingegriffen. Dafür lag keine Freigabe vor.
-- **Kein FC43.** Ausdrücklich untersagt, siehe Vorschlag in Abschnitt 7.
-
-Der Dauerretry (`jaeger.py`) lief von 19:11 bis 19:26 und hat in **434
-protokollierten Versuchen keinen einzigen Platz** bekommen. Er wurde danach
-**beendet** — bewusst nicht als unbeaufsichtigter Hintergrundprozess
-zurückgelassen, weil er sonst zu einem unvorhersehbaren Zeitpunkt einen Platz
-hätte übernehmen und die offizielle Integration für 14 Minuten aussperren
-können. Er steht startbereit, siehe Abschnitt 7.
-
-**Nebenwirkungsbilanz dieser Untersuchung:** Es wurde ausschließlich gelesen,
-und zwar nur FC04 auf Register 10014 (Batterie-SOC) — jede einzelne der 434
-Anfragen. Kein Schreibzugriff, kein FC43. Home Assistant wurde nur abgefragt.
-Das alte `scan_log.jsonl` wurde vor dem ersten Zugriff nach
-`scan_log_ORIG_BACKUP.jsonl` gesichert (5085 Zeilen, unverändert). An
-`scan_log.jsonl` selbst hängen zwei zusätzliche Zeilen — die beiden ersten
-`probe`-Aufrufe um 17:07:10Z und 17:08:03Z, beide fehlgeschlagen; alle
-weiteren 432 Anfragen gingen nach `sweep_log.jsonl`. Der Nacht-Sampler lief durchgehend
-ohne Unterbrechung weiter, und `sensor.…_441_solarstrom` war bei jeder
-Kontrolle sekundenfrisch (19:07:24, 19:17:03, 19:25:37).
+**Die beiden Methoden sind also komplementär, nicht redundant.** Der Blockscan
+findet, was nur im Block lesbar ist; der Einzelscan findet, was nur einzeln
+lesbar ist. Erst beide zusammen ergeben die vollständige Karte. Genau das war
+der Punkt des Auftraggebers.
 
 ---
 
 ## 3. Alle neu gefundenen gültigen Adressen
 
-Der geplante Sweep hat **keine** geliefert, weil er nicht laufen konnte.
+Zwölf Adressen, die der alte Scan nie als gültig belegt hatte. Werte aus dem
+Sweep um 19:38–19:45 Uhr, Zeitreihe aus 12 Messpunkten 19:57:47–19:59:35.
 
-Aus dem laufenden Nachtlauf ergeben sich jedoch **sechs Adressen, die der alte
-Scan nie als gültig belegt hatte** — er hatte im Block 10250–10265 nur die
-geraden Adressen mit count=1 erwischt, der Sampler liest inzwischen den ganzen
-Block. Das ist derselbe Effekt in klein und bestätigt die These des
-Auftraggebers ein weiteres Mal.
+| Adresse | Wert | Zustände über 12 Punkte | Quelle | Deutung | PV4? |
+|---|---|---|---|---|---|
+| **10001** | 2 | **1** (konstant) | Hersteller-YAML | `battery_status` = **2 = Entladen**. Deckt sich mit dem Betriebszustand am Abend. Erstmals tatsächlich gelesen — der Blockread ab 10000 scheitert immer | Nein |
+| **10004** | 0 | **1** | Hersteller-YAML | `third_party_pv_power`, Highword des INT32 (10004/10005) | Nein |
+| **10006** | 0 | **1** | **keine** | **Undokumentiert.** In keiner der fünf Hersteller-YAMLs definiert. Vermutlich Highword eines ungenutzten INT32-Objekts 10006/10007 (10007 antwortet einzeln nicht — typisch für ein 32-Bit-Objekt) | **Nein** — konstant null, während der Restwert um 43 W schwankte |
+| **10015** | 100 | **1** | **keine** | **Undokumentiert.** Liegt direkt hinter `battery_soc` (10014). Wert 100 bei einem SOC von 90–94 → **kein** SOC-Duplikat. Plausibelster Kandidat: **State of Health in %**. Das wäre ein echter Fund, denn `REGISTER.md` §4 führt Zyklen/Gesundheit als „nicht vorhanden" | **Nein** — exakt 100 über alle 12 Punkte, siehe Test unten |
+| **10632** | 0 | **1** | Smart-Meter-YAML | `primary_phase_1_voltage` (UINT16, gain 10) → **0,0 V** | Nein |
+| **10633** | 0 | **1** | Smart-Meter-YAML | `primary_phase_2_voltage` → 0,0 V | Nein |
+| **10634** | 0 | **1** | Smart-Meter-YAML | `primary_phase_3_voltage` → 0,0 V | Nein |
+| **10635** | 47186 | **12** | Smart-Meter-YAML | `primary_phase_1_current` (INT16, gain 100) → −183,5 A | **Nein**, siehe unten |
+| **10636** | 12583 | **4** | Smart-Meter-YAML | `primary_phase_2_current` → +125,8 A | **Nein** |
+| **10637** | 30933 | **12** | Smart-Meter-YAML | `primary_phase_3_current` → +309,3 A | **Nein** |
+| **10648** | 0 | **1** | Smart-Meter-YAML | im Leistungsblock des Meters | Nein |
+| **10649** | 0 | **1** | Smart-Meter-YAML | dito | Nein |
 
-| Adresse | aktueller Wert | Zustände | Deutung | PV4? |
-|---|---|---|---|---|
-| 10251 | 51 | 1 über 120 Punkte | Lowword von `rated_energy` (10250/10251 INT32) = **5,1 kWh** | nein — konstant |
-| 10253 | 0 | 1 über 120 Punkte | Lowword zu 10252 | nein — konstant |
-| **10255** | 65016 | **43** über 120 Punkte | Lowword eines INT32 mit 10254. Als INT32: **−550…0 W** | **nein** — siehe unten |
-| 10257 | 0 | 1 über 120 Punkte | Lowword zu 10256; 10256/10257 = SOC × 65536 | nein — konstant |
-| 10263 | 162 | 1 über 230 Punkte | Lowword der kumulierten Ladeenergie = **16,2 kWh** | nein — konstant |
-| 10265 | 139 | 4 über 230 Punkte | Lowword der kumulierten Entladeenergie = **13,6→13,9 kWh**, zählt am Abend hoch | nein — Energiezähler |
+### 3.1 Der Smart-Meter-Bereich — eine Korrektur an `REGISTER.md`
 
-**Damit ist eine offene Frage aus `PV4.md` §7 beantwortet:** 10251 = 51
-(5,1 kWh Nennkapazität, exakt die dort vorhergesagte Zahl), 10253 = 0,
-10257 = 0. Der Block 10250–10265 besteht aus INT32-Objekten, nicht aus
-16-Bit-Registern.
+`REGISTER.md` §4 schreibt: „Seine Registerdefinition 10620–10702 liefert unter
+Unit 0 wie Unit 1 und mit FC03 wie FC04 **durchgehend Exception 2**."
 
-**Zu 10254/10255 im Detail**, weil es das einzige neue Register mit
-nennenswerter Dynamik ist: Als INT32 gelesen läuft es über −550…0 W mit 41–43
-Zuständen. Es ist **batteriebezogen, nicht PV**:
+**Das ist widerlegt.** Acht Adressen dieses Bereichs antworten bei `count=1`
+einwandfrei. Die alte Aussage beruhte ausschließlich auf Blockreads und ist
+exakt der Fehlschluss, um den es in diesem Auftrag ging.
 
-- Es ist **durchweg negativ oder null**, PV4 ist positiv (60–180 W).
-- Sein Betrag wird bis 550 W groß, also das Dreifache des PV4-Maximums.
-- `10254/10255 + Batterieleistung(10008/10009)` ergibt **−48,5 W ± 19,4 W**
-  über 117 Punkte, Spanne −100…0. Es folgt also der Batterieleistung mit
-  umgekehrtem Vorzeichen und einem kleinen Versatz.
-- Sein Betrag **wächst**, wenn die PV-Leistung fällt — das Gegenteil eines
-  Strangs.
+Inhaltlich ändert das nichts an der Schlussfolgerung, aber die Begründung ist
+eine andere: Die Register **existieren** in der Firmware der Solarbank, sind
+aber **unbelegt**, weil kein Smart Meter angeschlossen ist. Belege:
+
+- Alle drei Phasenspannungen (10632–10634) sind **exakt 0**. Ein
+  angeschlossenes Messgerät an einem 230-V-Netz kann keine 0 V melden.
+- Die drei „Ströme" ergäben −183,5 A, +125,8 A und +309,3 A — bei 0 V.
+  Physikalisch unmöglich.
+- Über 12 Messpunkte springen sie ohne jede Kontinuität:
+  10635 = 65012 → 40370 → 64487 → 2621 → 59769 → 35652 → 13107 → 55050 →
+  7864 → 56623 → 28836 → 34603. Eine Messgröße verhält sich nicht so.
+  10636 wechselt nur zwischen vier Werten (65012, 2621, 5767, 12583).
+
+Das Muster der wiederkehrenden Werte (0x0A3D = 2621, 0x1687 = 5767,
+0xFDF4 = 65012) legt nahe, dass hier **Bruchstücke von IEEE-754-Gleitkommazahlen**
+in einem nicht initialisierten Puffer stehen. Für die PV4-Frage ist das
+gleichgültig: Es sind laut Herstellerdefinition **netzseitige Phasenströme**,
+keine DC-Strangwerte.
+
+### 3.2 Der entscheidende Test: bewegen sich die Neuzugänge mit PV4?
+
+Der Auftrag verlangt Korrelation gegen `resid` mit 10213 als Negativkontrolle
+und der Auflösungsprüfung. Beides wurde durchgeführt, über 12 Messpunkte im
+10-s-Takt bei fallender Dämmerung (`watch_new.jsonl`).
+
+Im Messfenster bewegte sich der **Restwert von −13,7 W über +29,4 W** — eine
+Spanne von 43 W bei einer Gesamtleistung von 40 W. Wenn ein Register Strang 4
+misst, muss es sich hier bewegen.
+
+| Register | Zustände | Urteil |
+|---|---|---|
+| 10001, 10004, 10006, 10015, 10632, 10633, 10634, 10648, 10649 | **1** | **Konstant, während PV4 um 43 W schwankte.** Als Messgröße für Strang 4 ausgeschlossen |
+| 10635, 10637 | 12 | Bewegt, aber sprunghaft ohne Kontinuität, neben 0 V Phasenspannung. Smart-Meter-Phasenströme, kein DC-Strang |
+| 10636 | 4 | dito, und 4 Zustände reichen nicht |
+
+**Auflösungsmaßstab zum Vergleich:** Die drei bestätigten Strangströme nehmen
+im Abendlauf **161 / 156 / 154** verschiedene Zustände an. Der vom
+Auftraggeber genannte Maßstab (80–92 Zustände über einen Tag) ist damit sogar
+konservativ. Kein Neuzugang kommt auch nur in die Nähe.
+
+**Negativkontrolle:** 10213 (Netzfrequenz) liefert im Abendlauf über 229
+Punkte **r(resid) = −0,032**. Das Fenster ist sauber; ein r-Wert unter etwa
+0,2 ist Rauschen.
 
 ---
 
 ## 4. Ergebnis des Unit-0-Vergleichs
 
-**Nicht durchgeführt — aus demselben Grund (kein Verbindungsplatz).**
+**Durchgeführt wie beauftragt: 10144–10250, Wert für Wert, unmittelbar
+nacheinander** (Unit 0 und Unit 1 im Abstand von 0,35 s, damit reale Änderung
+minimal bleibt).
 
-Was das Audit des alten Scanlogs dazu beitragen kann, bestätigt die Kritik des
-Auftraggebers vollständig:
-
-| Unit-ID | Anfragen im Altscan |
+| Ergebnis | Anzahl |
 |---|---|
-| 1 | 5072 |
-| **0** | **1** |
-| 2, 3, 4, 5, 6, 10, 16, 32, 100, 200, 246, 247 | je 1 |
+| Adressen verglichen | **107** |
+| **identisch** | **103** |
+| abweichend | 4 |
 
-Die einzige Anfrage an Unit 0 war `2026-08-11T11:33:34Z fc4 addr10014 count1
-ok=True`. Die Aussage „Unit 0 und 1 sind derselbe Server" beruht auf **einem
-einzigen übereinstimmenden SOC-Wert**. Sie ist damit nicht belegt, sondern nur
-nicht widerlegt. Der geplante Wert-für-Wert-Vergleich über 10144–10250
-(214 Anfragen, ~1,4 min) bleibt offen und ist nach wie vor der aussichtsreichste
-Einzeltest, weil eine Abweichung sofort ein zweites Registerabbild beweisen
-würde.
+Die vier Abweichungen:
 
-Ebenso offen: die 19 nie getesteten Unit-IDs 7, 8, 9, 11, 12, 13, 14, 15, 17,
-20, 24, 30, 33, 50, 64, 128, 240, 254, 255 (19 Anfragen, ~7 s).
+| Adresse | Unit 0 | Unit 1 | Was es ist |
+|---|---|---|---|
+| 10168 | 65523 (= −13) | 65529 (= −7) | Strom Strang 1, in der Dämmerung im Sekundentakt springend |
+| 10170 | 72 | 89 | Strom Strang 2 |
+| 10172 | 99 | 112 | Strom Strang 3 |
+| 10213 | 4996 | 4995 | Netzfrequenz, ±0,01 Hz |
+
+**Alle vier sind genau die volatilsten Größen des Geräts**, und die Differenzen
+entsprechen dem, was sich in 0,35 s ohnehin ändert — bei den Strangströmen in
+der Dämmerung nachweislich sogar mehr (siehe Abschnitt 7.2). **Kein einziges
+statisches Register weicht ab.** Ein zweites, abweichendes Registerabbild
+unter Unit 0 gibt es nicht.
+
+Damit ist die Aussage „Unit 0 und 1 sind derselbe Server" von **einer
+Stichprobe auf 107 Stichproben** gehoben und bestätigt. Der aussichtsreichste
+verbliebene Einzeltest ist damit erledigt — er hat nichts ergeben.
+
+**Unit-IDs — abgeschlossen (Nachlauf 20:15 Uhr).** Nach Reparatur des Wrappers
+(ein Timeout ist eine gültige Antwort „diese Unit-ID existiert nicht", kein
+Verbindungsverlust) wurden die verbliebenen **17 IDs in 40 Sekunden** statt in
+8,5 Minuten geprüft:
+
+```
+9, 11, 12, 13, 14, 15, 17, 20, 24, 30, 33, 50, 64, 128, 240, 254, 255
+```
+
+**Alle 17 antworten nicht** (Timeout). Zusammen mit den zwölf des Altscans und
+den beiden aus dem ersten Durchlauf (7, 8) sind damit **31 Unit-IDs außer 0
+und 1 geprüft — keine einzige antwortet.** Das Gerät bedient genau zwei
+Unit-IDs, und beide zeigen dasselbe Registerabbild. Ein zweiter Modbus-Server
+im Gerät, der Strang 4 führen könnte, existiert nicht.
 
 ---
 
-## 5. Neubewertung aller bisherigen Befunde — ergebnisoffen
+## 5. FC03 gegen FC04
 
-Datengrundlage: `pv4_evening.jsonl`, Stand 19:23 Uhr, **n = 229 gültige
-Messpunkte**, 15:28:26Z–17:22:49Z, 154 Register je Punkt.
+Alle 131 gefundenen Adressen wurden zusätzlich mit FC03 gelesen.
 
-**Das Fenster ist tauglich.** PV-Spanne 60–810 W (mehrfacher
-Richtungswechsel), Restwert −65…288 W. Negativkontrolle:
+**Das belastbare Ergebnis: Kein einziger FC03-Read lieferte eine Exception.**
+Jede über FC04 lesbare Adresse ist auch über FC03 lesbar — das Aliasing gilt
+also auch für die neu gefundenen Adressen, einschließlich des
+Smart-Meter-Bereichs. Von 131 Adressen lieferten **109 exakt denselben Wert**.
 
-| Negativkontrolle | r(resid) | r(pv_total) | r(ac) |
-|---|---|---|---|
-| 10213 Netzfrequenz | **−0,032** | +0,013 | −0,001 |
-| 10238 Netzfrequenz | **−0,032** | +0,013 | −0,001 |
+**Die 22 abweichenden Adressen sind kein Befund, sondern ein Messfehler
+meinerseits — das gehört hierhin, weil es sonst jemand als Aliasing-Bruch
+liest.** Verglichen wurde der FC03-Wert von 19:51 gegen den FC04-Wert aus dem
+Sweep von 19:38–19:45. Zwischen beiden Lesungen liegen **6 bis 13 Minuten**.
+Die 22 Abweichungen sind ausnahmslos zeitveränderliche Größen:
 
-Zum Vergleich lieferte dieselbe Netzfrequenz im verworfenen Mittagsfenster
-r = −0,83. Hier ist sie null. **Das Ergebnis ist damit nicht wertlos, sondern
-belastbar.**
+```
+10012, 10014, 10041, 10130, 10167-10172, 10199, 10202, 10205, 10213,
+10224, 10227, 10230, 10238, 10256, 10635-10637
+```
 
-**Auflösungsmaßstab.** Die drei bestätigten Strangströme nehmen in genau
-diesem Fenster **161 / 156 / 154** verschiedene Zustände an (10168 / 10170 /
-10172). Der vom Auftraggeber genannte Maßstab von 80–92 Zuständen ist also eher
-noch zu milde. Ein Kandidat mit ≤ 26 Zuständen kann kein Strangstrom sein.
+Beispiel 10014 (`battery_soc`): FC04 = 92 (19:38), FC03 = 90 (19:51). Der
+Akku hat in 13 Minuten 2 % entladen — und **10041 und 10256, die beide den SOC
+spiegeln, zeigen exakt dieselbe Differenz** (Highbyte 92 → 90). Das ist ein
+konsistenter Zeitversatz, kein Registerunterschied.
 
-### 5.1 Die kritischen Fälle
+### 5.1 Der Nachtest — erledigt, der Verdacht war unbegründet
 
-#### 10205 — bisher AC-Ausgangsstrom. Gegenhypothese geprüft, sie fällt.
+Um 20:16 Uhr wurden alle 131 Adressen erneut geprüft, diesmal **FC04 und FC03
+im Abstand von 50 ms** statt von Minuten.
+
+| Ergebnis | Anzahl |
+|---|---|
+| Adressen geprüft | **131** |
+| **identischer Wert** | **130** |
+| abweichend | **1** |
+| FC03-Ausnahmen | **0** |
+
+Die einzige Abweichung: **10167, FC04 = 348, FC03 = 347** — die Spannung von
+Strang 1, um **einen** Rohwert (0,1 V) verschieden, bei zwei Lesungen 50 ms
+auseinander. Das ist Messrauschen, kein Registerunterschied.
+
+**Damit ist das Aliasing FC03 ⇄ FC04 für alle 131 Adressen bewiesen**, auch für
+die volatilen und auch für den Smart-Meter-Bereich. Die 22 „Abweichungen" des
+ersten Durchlaufs waren restlos der Zeitversatz — der Verdacht ist ausgeräumt,
+nicht bloß unbewiesen geblieben.
+
+**Ebenfalls nachgeprüft: 10650–10702.** 53 Adressen einzeln, **0 gültig** —
+wie schon im Hauptsweep, der diesen Bereich (er liegt innerhalb 10000–11000)
+bereits abgedeckt hatte. Die Angabe „noch offen" in der vorigen Fassung dieses
+Dokuments war ein Fehler meinerseits; die Wiederholung bestätigt das Ergebnis
+reproduzierbar. Gültig im Smart-Meter-Bereich sind ausschließlich
+10632–10637 und 10648/10649.
+
+---
+
+## 6. Neubewertung aller bisherigen Befunde
+
+Datengrundlage `pv4_evening.jsonl`, Stand 19:23 Uhr, **n = 229 Messpunkte**,
+PV-Spanne **60–810 W**, Restwert −65…288 W. Negativkontrolle 10213:
+r(resid) = **−0,032** → Fenster tauglich.
+
+### 6.1 Der kritische Fall 10205 — Gegenhypothese geprüft, sie fällt
 
 Die Gegenhypothese lautete: die Korrelation sei Zufall, weil AC-Ausgang und
-PV-Summe abends gleichläufig fallen. **Sie ist falsifiziert**, und zwar
-dreifach:
+PV-Summe abends gleichläufig fallen. **Falsifiziert, dreifach:**
 
-1. **Die Voraussetzung der Gegenhypothese trifft nicht zu.** Wären AC und PV4
-   gleichläufig, müsste r(ac, resid) hoch sein. Gemessen: **r = +0,530** —
-   mäßig. Es gibt also reichlich Zeit, in der beide auseinanderlaufen.
+1. **Die Voraussetzung trifft nicht zu.** Wären beide gleichläufig, müsste
+   r(ac, resid) hoch sein. Gemessen: **+0,530**. Es gibt also reichlich
+   Zeitfenster, in denen sie auseinanderlaufen.
+2. **Nach Abzug des AC-Anteils bleibt nichts.** `|AC| ÷ U × 100` von 10205
+   abgezogen ergibt einen Rest von im Mittel −0,60 Rohwerten, der mit dem
+   Restwert zu **r = −0,031** korreliert.
+3. **Der Trenntest in den Divergenzfenstern** — Schritte, in denen AC-Leistung
+   und Restwert in **entgegengesetzte** Richtung gehen:
 
-2. **Nach Abzug des AC-Anteils bleibt nichts übrig.** Rechnet man
-   `|AC-Leistung| ÷ Netzspannung × 100` und zieht das von 10205 ab, bleibt ein
-   Rest von im Mittel **−0,60 Rohwerten** (Spanne −15,3…+16,9). Dieser Rest
-   korreliert mit dem Restwert zu **r = −0,031**. Steckte PV4 in 10205, müsste
-   genau hier das Signal auftauchen. Es ist nicht da.
-
-3. **Der direkte Trenntest — die Divergenzfenster.** Gesucht wurden Schritte,
-   in denen AC-Leistung und Restwert in **entgegengesetzte** Richtung gehen
-   (|ΔAC| > 40 W und |Δresid| > 20 W bei verschiedenem Vorzeichen). Dort und
-   nur dort trennt sich die Frage:
-
-   | Schrittweite | Divergenzschritte | 10205 folgt der AC-Leistung | 10205 folgt dem Restwert |
+   | Schrittweite | Divergenzschritte | 10205 folgt AC | 10205 folgt resid |
    |---|---|---|---|
-   | 30 s | 7 | **7** | 0 |
-   | 60 s | 6 | **6** | 0 |
-   | 120 s | 11 | **11** | 0 |
+   | 30 s | 7 | 7 | 0 |
+   | 60 s | 6 | 6 | 0 |
+   | 120 s | 11 | 11 | 0 |
    | **Summe** | **24** | **24** | **0** |
 
-   **24:0.** Ein Register, das den vierten Strang misst, kann sich nicht
-   vierundzwanzig Mal von ihm weg und zur AC-Leistung hin bewegen.
+4. **Gegenprobe bei stillstehender AC-Leistung:** In 177 Schritten mit
+   |ΔAC| ≤ 20 W schwankte der Restwert um −132…+171 W, 10205 aber nur um
+   −19…+13 Rohwerte (r = +0,040).
 
-4. **Die Gegenprobe bei stillstehender AC-Leistung.** In 177 Schritten mit
-   |ΔAC| ≤ 20 W schwankte der Restwert um −132…+171 W — 10205 aber nur um
-   −19…+13 Rohwerte, r(Δ10205, Δresid) = **+0,040**. Wenn PV4 sich um 170 W
-   bewegt und das Register schläft, misst es PV4 nicht.
+**10205 ist der AC-Ausgangsstrom. Endgültig.** r(10205, AC) = **+0,995**.
 
-**Urteil: 10205 ist der AC-Ausgangsstrom. Endgültig ausgeschlossen.**
-r(10205, AC) = +0,995 über 229 Punkte.
-
-#### 10173 / 10174 / 10175 — die Plätze eines vierten Strangpaars
-
-Über inzwischen **229 Messpunkte konstant null**, in einem Fenster, in dem der
-Restwert bis 288 W erreichte. Auch der Mittags-Langlauf (109 Punkte) zeigt
-null.
-
-**Der vom Auftraggeber geforderte Nacht-/Sonnenaufgangstest läuft bereits** und
-ist der einzige Weg, sie endgültig zu erledigen: Der Sampler protokolliert
-diese drei Adressen bis 09:00 Uhr, also über Sonnenuntergang (20:59),
-Nacht und Sonnenaufgang. Ein Register, das nur unter bestimmten Bedingungen
-belegt wird, müsste sich dort zeigen. **Bis morgen früh ist das ohne jeden
-weiteren Eingriff beantwortet.**
-
-#### 10183 / 10187 — bisher völlig unbestimmt
-
-Über 229 Abendpunkte **konstant null**, ebenso in allen Scanlesungen. Sie sind
-lesbar, tragen aber in dieser Firmware keinen Inhalt. Als PV4-Kandidat
-ausgeschlossen, solange sie null bleiben — derselbe Nachtlauf prüft auch das
-mit.
-
-#### 10156 — Stufenwert
-
-Nimmt über den ganzen Tag **3 Zustände** an (340 / 350 / 360; Wechsel um
-15:28→350 und 16:49→340). Ein Strangstrom hat im selben Fenster 154–161.
-**Als Messgröße für PV4 ausgeschlossen**, unabhängig von der noch offenen
-Frage Spannung-oder-Temperatur.
-
-#### 10230 / 10234 / 10236 — bisher Blindstrom/Blindleistung
-
-| Register | Zustände | Spanne | r(resid) | Urteil |
-|---|---|---|---|---|
-| 10230 | 15 | 17–41 | −0,329 | zu grob, und **negativ** korreliert |
-| 10234 | 4 | 1–4 | −0,249 | zu grob |
-| 10236 | 26 | 42–99 | −0,305 | zu grob, und **negativ** korreliert |
-
-Alle drei scheitern am Auflösungskriterium (15 / 4 / 26 gegen 154–161). Hinzu
-kommt: ihre Korrelation mit dem Restwert ist **negativ**. PV4 stieg im
-Messfenster, während diese Register fielen. Ein Strangstrom kann nicht fallen,
-während der Strang mehr liefert.
-
-### 5.2 Vollständige Neubewertungstabelle
-
-Alle 33 Register, die sich im Fenster überhaupt bewegt haben, plus die
-Nullbefunde. Sortiert nach |r(resid)|.
+### 6.2 Vollständige Tabelle
 
 | Register | Zustände | Spanne | r(resid) | bisherige Deutung | Könnte es PV4 sein? |
 |---|---|---|---|---|---|
-| 10003 | 58 | 60–810 | +0,653 | Lowword von `pv_power` (10002) | **Nein — zirkulär.** Der Restwert wird aus dieser Zahl gebildet |
-| 10170 | 156 | 30–705 | +0,540 | Strom Strang 2 | Nein — gegen App verifiziert (2,2 %) |
-| 10209 | 37 | 390–810 | +0,530 | Lowword AC-Ausgangsleistung | Nein — r(ac) = 1,000 exakt |
-| 10205 | 105 | 165–337 | +0,527 | AC-Ausgangsstrom | **Nein — 24:0 in den Divergenzfenstern**, siehe 5.1 |
-| 10256 / 10014 / 10041 / 10130 | 6 | 95–100 | +0,490 | SOC (drei Kopien) | Nein — 6 Zustände, und es ist der SOC |
-| 10009 | 35 | 0–480 | −0,481 | Batterieleistung, Lowword | Nein — negativ korreliert, Batterie |
-| 10156 | 3 | 340–360 | +0,462 | Stufenwert (Spannung/Temperatur offen) | Nein — 3 Zustände |
+| 10003 | 58 | 60–810 | +0,653 | Lowword von `pv_power` | **Nein — zirkulär**, der Restwert wird daraus gebildet |
+| 10170 | 156 | 30–705 | +0,540 | Strom Strang 2 | Nein — App-verifiziert (2,2 %) |
+| 10209 | 37 | 390–810 | +0,530 | Lowword AC-Leistung | Nein — r(ac) = 1,000 |
+| 10205 | 105 | 165–337 | +0,527 | AC-Ausgangsstrom | **Nein — 24:0**, siehe 6.1 |
+| 10014/10041/10130/10256 | 6 | 95–100 | +0,490 | SOC (drei Kopien) | Nein — 6 Zustände |
+| 10009 | 35 | 0–480 | −0,481 | Batterieleistung Lowword | Nein — negativ korreliert |
+| 10156 | 3 | 340–360 | +0,462 | Stufenwert | Nein — 3 Zustände |
 | 10252 | 4 | 8705–9216 | +0,458 | Highbyte = 10156 ÷ 10 | Nein — 4 Zustände |
-| 10168 | 161 | 8–695 | +0,445 | Strom Strang 1 | Nein — gegen App verifiziert (0,2 %) |
-| **10265** | 4 | 136–139 | −0,407 | **neu**: Lowword kumulierte Entladeenergie | Nein — monotoner Energiezähler, 4 Zustände |
-| 10061 | 229 | — | −0,402 | Gerätezeit, Lowword | Nein — zählt monoton |
-| 10172 | 154 | 4–740 | +0,353 | Strom Strang 3 | Nein — gegen App verifiziert (1,8 %) |
-| 10224 / 10227 / 10199 / 10202 | 32–34 | 2376–2410 | +0,32…+0,33 | Netzspannung A–D | Nein — 237,6–241,0 V, das ist Netz, kein Modul |
+| 10168 | 161 | −10…695 | +0,445 | Strom Strang 1 | Nein — App-verifiziert (0,2 %) |
+| 10265 | 4 | 136–139 | −0,407 | Lowword Entladeenergie | Nein — monotoner Zähler |
+| 10061 | 229 | — | −0,402 | Gerätezeit Lowword | Nein — zählt monoton |
+| 10172 | 154 | 4–740 | +0,353 | Strom Strang 3 | Nein — App-verifiziert (1,8 %) |
+| 10224/10227/10199/10202 | 32–34 | 2376–2410 | +0,32…0,33 | Netzspannung A–D | Nein — 237,6–241,0 V |
 | 10230 | 15 | 17–41 | −0,329 | AC-Blindstrom | Nein — 15 Zustände, negativ |
-| 10011 | 44 | 400–2630 | +0,328 | Hauslast, Lowword | Nein — bis 2630 W, r(ac) = +0,722 |
+| 10011 | 44 | 400–2630 | +0,328 | Hauslast Lowword | Nein — r(ac) = +0,722 |
 | 10236 | 26 | 42–99 | −0,305 | AC-Blindleistung | Nein — 26 Zustände, negativ |
 | 10234 | 4 | 1–4 | −0,249 | Zustandscode | Nein — 4 Zustände |
-| 10071 | 2 | 0/65535 | −0,186 | Batterie-Sollwert (Vorzeichen) | Nein — 2 Zustände |
-| 10169 / 10167 / 10171 | 53–61 | 273–374 | −0,17…+0,02 | Spannungen Strang 1–3 | Nein — verifiziert |
-| **10254 / 10255** | 41–43 | −550…0 W | −0,069 / −0,023 | **neu**: batteriebezogener INT32 | Nein — negativ, folgt −Batterieleistung, siehe §3 |
-| 10213 / 10238 | 19 | 4991–5009 | **−0,032** | Netzfrequenz | **Negativkontrolle** — bestätigt die Tauglichkeit des Fensters |
-| 10012 / 10013 | 2 / 20 | — | −0,006 / −0,004 | Netzleistung | Nein |
-| **10173 / 10174 / 10175** | **1** | **0** | — | Plätze des vierten Strangpaars | **Nein, solange sie null sind** — Nachttest läuft |
-| **10183 / 10187** | **1** | **0** | — | unbestimmt | **Nein, solange sie null sind** — Nachttest läuft |
-| 121 weitere | 1 | konstant | — | siehe `REGISTER.md` | Nein — konstant über 229 Punkte |
+| 10254/10255 | 41 | −550…0 W | −0,069 | **neu**: INT32, folgt −Batterieleistung (+48,5 ± 19,4 W) | Nein — negativ, Betrag wächst bei fallender PV |
+| 10213/10238 | 19 | 4991–5009 | **−0,032** | Netzfrequenz | **Negativkontrolle** |
+| **10173/10174/10175** | **1** | **0** | — | Plätze des vierten Strangpaars | **Nein** — konstant null über 306 Punkte, auch bei 288 W Restwert |
+| **10183/10187** | **1** | **0** | — | unbestimmt | **Nein** — konstant null; jetzt zusätzlich einzeln bestätigt gültig |
+| **10001/10004/10006/10015** | **1** | — | — | **neu**, siehe §3 | **Nein** — konstant, während PV4 um 43 W schwankte |
+| **10632–10637, 10648/10649** | 1–12 | — | — | **neu**: Smart Meter, unbelegt | **Nein** — netzseitig, 0 V Phasenspannung |
+| 121 weitere | 1 | konstant | — | siehe `REGISTER.md` | Nein |
 
-**Kein einziger Kandidat übersteht die Prüfung.** Der höchste nicht-zirkuläre,
-nicht bereits identifizierte r-Wert liegt bei 0,04.
+**Kein Kandidat übersteht die Prüfung.** Der höchste nicht-zirkuläre, nicht
+bereits identifizierte r-Wert liegt bei 0,04.
 
 ---
 
-## 6. Was ungeprüft blieb — und was die Prüfung kostet
+## 7. Zwei neue Protokollbefunde für `REGISTER.md`
 
-Das ist der Teil, an dem der Wert eines Nullbefunds hängt. Die Bilanz ist
-ehrlich: **lückenlos ausgeschlossen ist wenig.**
+### 7.1 Das Gerät erlaubt nur drei gleichzeitige Sitzungen
 
-### 6.1 Die Abdeckungsbilanz des Adressraums
+Vor der Freigabe war ein vierter Client **nicht** möglich: Der TCP-Handshake
+gelingt, die erste Modbus-PDU wird mit RST beantwortet. **434 Versuche über
+15 Minuten, 0 Erfolge.** Ausgeschlossen wurde:
 
-| Menge | Umfang | Bedeutung |
-|---|---|---|
-| Als gültig belegt (in einer erfolgreichen Antwort enthalten) | **252** Adressen | bekannt |
-| Jemals einzeln mit count=1 angesprochen | **267** Adressen (davon 52 gültig) | Status sicher |
-| **Weder das eine noch das andere** | **65 073 Adressen = 99,3 %** | **ungeprüft** |
+- **Netzweg:** Bindung an die direkte LAN-Adresse (192.168.178.129) statt an
+  den Tailscale-Pfad (100.74.115.49) — **ebenfalls RST**. Kein Tunnel-Artefakt.
+- **Begrenzung pro Quell-IP:** sonst hätte die LAN-Adresse funktioniert.
 
-Die count=1-Abdeckung des alten Scans, vollständig:
+Alle drei Clients halten ihre Sitzung **dauerhaft** (offizielle Integration
+`modbus_client.py:107`; `solarbank_pv` `modbus_reader.py:92-93`; Nacht-Sampler
+`pv4_evening.py:208-209`, bestätigt per `netstat` über 14 s gleicher
+Quellport). Sobald `solarbank_pv` deaktiviert war, kam die Verbindung
+**im ersten Versuch** zustande.
 
-```
-0 · 100 · 500 · 1000 · 9999-10000 · 10014 · 10016-10047 · 10050-10051 ·
-10060 · 10080-10111 · 10176-10207 · 10240-10271 · 32736-32767 ·
-32800-32831 · 59968-60000 · 60032-60063
-```
+**Konsequenz für den Betrieb:** Ein vierter Modbus-Client ist an diesem Gerät
+grundsätzlich nicht möglich, solange die drei bestehenden laufen. Wer messen
+will, muss einen abschalten.
 
-Die zehn zusammenhängenden ungeprüften Bereiche, nach Größe:
+### 7.2 Die Strangströme sind INT16, nicht UINT16 — mit Folgen für den Sampler
 
-| Bereich | Adressen |
+`REGISTER.md` §3.2 führt 10168/10170/10172 als UINT16. **Das ist falsch.** In
+der Dämmerung liefert 10168 Werte ab 32768 aufwärts:
+
+| Zeit (UTC) | 10168 roh | als INT16 | als Strom |
+|---|---|---|---|
+| 17:28:49 | 65529 | −7 | −0,07 A |
+| 17:30:49 | 65526 | −10 | −0,10 A |
+| 17:38:19 | 65526 | −10 | −0,10 A |
+
+Über den ganzen Lauf: 10168 min **−10**, 10170 min +28, 10172 min +4. Nur
+Strang 1 geht negativ — physikalisch plausibel für ein Modul, das bei
+Restlicht als Erstes unter die Schwelle fällt.
+
+**Der Nacht-Sampler rechnet diese Werte vorzeichenlos** und produziert dadurch
+Leistungen von **+20 000 W** für Strang 1 und Restwerte von **−20 000 W**.
+Betroffen sind bislang 8 von 306 Messpunkten, alle nach 19:28 Uhr — und es
+werden mit fortschreitender Nacht mehr. Wirkung auf die Auswertung:
+
+| Dämmerungsabschnitt (pv_total ≤ 60 W, n = 76) | Mittelwert des Restwerts |
 |---|---|
-| 32832–59967 | 27 136 |
-| 10272–32735 | 22 464 |
-| 1001–9998 | 8 998 |
-| 60064–65535 | 5 472 |
-| 501–999 | 499 |
-| 101–499 | 399 |
-| 1–99 | 99 |
-| 10004–10007 | 4 |
-| 10001, 10015 | je 1 |
+| wie vom Sampler geschrieben | **−10 164,8 W** |
+| mit INT16 korrigiert | **+15,7 W** (Spanne −17,6…+34,1) |
 
-**In unmittelbarer Nähe der bekannten Registerinseln — dort, wo ein
-PV4-Register am ehesten läge — sind ungeprüft:**
-
-- **9900–11200:** 1034 Adressen (9900–9998, 10001, 10004–10007, 10015,
-  **10272–11200**)
-- **32700–33100:** 305 Adressen (32700–32735, 32832–33100)
-- **59900–60500:** 505 Adressen (59900–59967, 60064–60500)
-
-Besonders bemerkenswert: **10272–11200 ist nie einzeln geprüft worden**, und
-darin liegt der Smart-Meter-Bereich 10620–10702, für den `REGISTER.md`
-„durchgehend Exception 2" meldet — eine Aussage, die ausschließlich auf
-Blockreads beruht und daher genau dem Fehlschluss unterliegt, um den es hier
-geht.
-
-### 6.2 Zeitbedarf, bei 0,35 s Pause (≈ 2,8 Anfragen/s)
-
-| Prüfung | Anfragen | Dauer |
-|---|---|---|
-| **Schritt 1: 10000–11000, 32700–33100, 59900–60500** | 2 003 | **12,7 min** |
-| Schritt 2a: Unit-0-Vergleich 10144–10250, Wert für Wert | 214 | 1,4 min |
-| Schritt 2b: 19 nie getestete Unit-IDs | 19 | 7 s |
-| Schritt 1b: 11000–12000, 9000–10000, 0–1000 | 3 003 | 19,0 min |
-| Menge C komplett (alle 65 073 offenen Adressen) | 65 073 | **6,9 h** |
-| Gesamter Adressraum 0–65535, lückenlos | 65 536 | 6,9 h |
-
-**Der komplette lückenlose Nachweis über den ganzen Adressraum kostet also
-knapp sieben Stunden ununterbrochenen Gerätezugriffs** — eine Nacht. Der
-wertvollste Teil (Schritt 1 + 2) kostet **14 Minuten**.
-
-### 6.3 Weitere offene Punkte
-
-| Frage | Warum offen | Was sie klärt |
-|---|---|---|
-| FC03 gegen FC04 an neu gefundenen Adressen | keine neuen Adressen gefunden, weil kein Zugriff | Ob das Aliasing auch außerhalb der bekannten Register gilt |
-| Ändern sich 10173–10175 / 10183 / 10187 nachts oder bei Sonnenaufgang? | Messung läuft bis 09:00 | **Beantwortet sich von selbst bis morgen früh** — ohne jeden Eingriff |
-| Sonnenuntergangstest für 10205 | Sonnenuntergang 20:59, Sampler läuft | Bleibt 10205 nach Sonnenuntergang stehen, während der Restwert auf null geht, ist der Ausschluss auch physikalisch besiegelt |
-| Blockgrößen > 32 Register | nie getestet | Ein `count=64`-Read könnte Blockgrenzen zeigen, die 32er-Blöcke verbergen |
+**Jede Nachtauswertung, die `resid` aus `pv4_evening.jsonl` ungefiltert
+verwendet, ist damit unbrauchbar.** Die Korrektur ist ein Einzeiler:
+`v - 65536 if v >= 32768 else v` auf 10167–10172 in `derive()`. Bis das
+geschehen ist, müssen Punkte mit `|resid| > 1000` verworfen oder neu gerechnet
+werden.
 
 ---
 
-## 7. Vorschläge, die ich nicht ausgeführt habe
+## 8. Sonnenuntergangstest und die Sockel-Hypothese
 
-**FC43 (Read Device Identification) — nicht ausgeführt, ausdrücklich
-untersagt.** Ich halte es dennoch für aussichtsreich und schlage es zur
-Freigabe vor: FC43/MEI Typ 0x0E liefert bei vielen Wechselrichtern
-Herstellerobjekte, in denen die Registerkarte selbst beschrieben ist. Es ist
-ein reiner Lesezugriff und kann nichts verändern. Objekt-IDs 0x00–0x02
-(Basic) sind Pflicht, 0x80–0xFF sind herstellerspezifisch. Eine einzige
-Anfrage würde zeigen, ob das Gerät überhaupt antwortet. **Nur nach
-ausdrücklicher Freigabe.**
+Der Auftraggeber meldet: Restwert von ~90 W auf 22 W gefallen, Gesamtleistung
+auf 70 W. **Die korrigierte Rechnung bestätigt das und stellt es auf eine
+breitere Basis.** Restwert nach Leistungsklasse, INT16-korrigiert, n = 306:
 
-**Ein vierter Verbindungsplatz.** Die eleganteste Lösung wäre, den
-Nacht-Sampler für 14 Minuten anzuhalten. Er verlöre dabei rund 28 Messpunkte
-von mehreren hundert; die 10156-Nachtkurve und der Sonnenuntergangstest
-blieben intakt, solange das vor 20:45 geschieht. Der fertige Sweep steht
-bereit:
+| pv_total | n | Restwert Mittel | sd | Anteil an pv_total |
+|---|---|---|---|---|
+| ≥ 400 W | 167 | 118,7 W | 41,0 | 21,7 % |
+| 200–399 W | 39 | 88,5 W | 26,9 | 26,8 % |
+| 100–199 W | 7 | 70,1 W | 21,7 | 53,3 % |
+| 40–99 W | 93 | **17,4 W** | 12,9 | 30,4 % |
 
-```
-cd <scratchpad>
-python jaeger.py full     # Schritt 1 + 2, ~14 min, holt sich den Platz selbst
-```
+**Der Restwert fällt mit der Gesamtleistung — er bleibt nicht auf einem
+Plateau stehen.** Ein konstanter systematischer Versatz (Sockel) hätte genau
+das tun müssen. **Die Sockel-Hypothese ist damit erledigt**, und zwar mit
+korrigierten Zahlen statt mit den vom Vorzeichenfehler verseuchten.
 
-`jaeger.py` wartet von sich aus auf einen freien Platz, hält ihn dann und
-arbeitet Schritt 1 und 2 ab. Er nutzt `ReadOnlyModbusTCP` aus `modbus_ro.py`
-und kann daher konstruktionsbedingt nur FC 1–4 senden. Schritt 1b
-(19 weitere Minuten) ist absichtlich **nicht** in `full` enthalten, damit die
-Haltezeit des Verbindungsplatzes begrenzt bleibt.
+Der endgültige Test steht weiterhin aus: `pv_total → 0` tritt erst nach
+Sonnenuntergang (20:59) ein. Der Sampler läuft bis 09:00 und deckt ihn ab —
+**vorausgesetzt, die INT16-Korrektur wird vorher eingebaut oder nachträglich
+gerechnet.**
 
 ---
 
-## 8. Was diese Arbeit zeigt und was nicht
+## 9. Was jetzt lückenlos ausgeschlossen ist — und was offen bleibt
+
+### 9.1 Lückenlos ausgeschlossen
+
+| Bereich | Methode | Status |
+|---|---|---|
+| **10000–11000** | 1001 × count=1, FC04 | ✅ vollständig, 121 gültig |
+| **32700–33100** | 401 × count=1, FC04 | ✅ vollständig, 6 gültig |
+| **59900–60500** | 601 × count=1, FC04 | ✅ vollständig, 4 gültig |
+| **Unit 0, 10144–10250** | 107 × Wert-für-Wert gegen Unit 1 | ✅ identisch |
+| Alle 131 gefundenen Adressen | FC03 zusätzlich gelesen | ✅ keine Exception |
+
+In diesen Bereichen liegt **kein Register, das Strang 4 misst**.
+
+### 9.1a Nachgetragen am 11.08. um 20:15–20:18 Uhr
+
+| Punkt | Ergebnis | Dauer |
+|---|---|---|
+| 17 verbliebene Unit-IDs | **alle Timeout** — 31 IDs außer 0/1 geprüft, keine antwortet | 40 s |
+| FC03/FC04 unmittelbar hintereinander, 131 Adressen | **130/131 identisch**, 1 × 0,1 V Rauschen, 0 Ausnahmen | 60 s |
+| 10650–10702 einzeln | **0 gültig** (war bereits im Hauptsweep enthalten) | 21 s |
+
+**Der vollständige Sweep über die restlichen 63 528 Adressen** lief von
+20:18 bis 03:21 Uhr und ist abgeschlossen. Ergebnis in 9.2.
+
+### 9.2 Der vollständige Sweep — abgeschlossen, Nullbefund
+
+Der Lauf `fullsweep.py` startete am 11.08. um 20:18 Uhr und endete am 12.08.
+um **03:21:51 Uhr**, nach 7,1 Stunden. Er arbeitete die Liste in der
+Reihenfolge der Erfolgsaussicht ab: erst die Nachbarschaft der bekannten
+Registerinseln, dann der große Rest.
+
+| Ergebnis | Anzahl |
+|---|---|
+| Arbeitsliste | 63 528 |
+| Adressen geprüft | **63 528** |
+| **gültige Adressen gefunden** | **0** |
+| übersprungene Adressen | 0 |
+
+**`fullsweep_hits.jsonl` ist leer geblieben — null Zeilen.** Gegenprobe auf
+Dateiebene: `fullsweep_progress.jsonl` enthält 63 528 Zeilen und **keine
+einzige mit `ok: true`**. Der Nullbefund steht damit nicht auf der leeren
+Trefferdatei allein, sondern auf dem lückenlosen Protokoll jeder einzelnen
+Adresse.
+
+**Damit ist der gesamte 16-Bit-Adressraum geprüft.** 2 003 Adressen im ersten
+Sweep, 63 528 im zweiten, dazu die Einzelproben — zusammen alle 65 536
+Adressen, jede einzeln mit `count=1`. Außerhalb der bereits bekannten
+Registerinseln 10000–10649, 32768–32799 und 60000–60031 existiert **kein
+einziges gültiges Register**.
+
+### 9.2a Gegenprobe unter Produktion — die letzte offene Halbfrage
+
+Der Sweep lief bei Dunkelheit. Modbus-Adressgültigkeit ist normalerweise
+statisch, aber die Möglichkeit blieb, dass ein PV4-Register **nur unter
+Produktion überhaupt antwortet** — dann hätte der Nachtlauf es übersehen.
+
+Am 12.08. um 08:53 Uhr wurde das geprüft: **500 zufällig gezogene Adressen**
+(feste Saat 20260812, Spanne 182–65503) aus der Menge der nachts negativ
+getesteten, erneut gelesen bei laufender Einspeisung von rund 400 W.
+
+Der Lauf trägt eine **Positivkontrolle**: alle 50 Adressen wird ein bekannt
+gültiges Register mitgelesen (10002, 10014, 10156, 10173, 10174, 10175). Ohne
+das wären 500 Fehlschläge nicht von einer stillen Verbindungsstörung zu
+unterscheiden. 10173–10175 sind dabei der interessanteste Fall: gültig, aber
+konstant null — genau das Muster, das ein leeres PV4-Feld hätte.
+
+**Ergebnis, 08:53–08:56 Uhr:**
+
+| | Anzahl |
+|---|---|
+| Adressen geprüft | **500** |
+| **gültig unter Produktion** | **0** |
+| Exception 2 | 500 |
+| Transportfehler | 0 |
+
+**Keine einzige nachts negative Adresse antwortet unter Produktion.** Damit
+ist auch die zweite Hälfte der Frage beantwortet: Der Nullbefund hängt nicht
+am Betriebszustand des Geräts.
+
+**Zu den Positivkontrollen — hier lag ein Fehler in meinem Versuchsaufbau.**
+Von zehn Kontrollzugriffen gelangen sechs und vier scheiterten. Das Muster ist
+aber nicht zufällig, sondern vollständig deterministisch:
+
+| Kontrollregister | Versuche | erfolgreich | Wert |
+|---|---|---|---|
+| 10002 (PV-Leistung, Highword) | 2 | **2** | 0 |
+| 10014 (SOC) | 2 | **2** | 5 → 6 |
+| 10156 (Stufenwert) | 2 | **2** | 300 |
+| 10173 | 2 | 0 | Exception 2 |
+| 10174 | 1 | 0 | Exception 2 |
+| 10175 | 1 | 0 | Exception 2 |
+
+Die drei fehlgeschlagenen sind **genau** 10173–10175 — also genau die
+Register, die nach Abschnitt 2 dieses Dokuments ausschließlich **innerhalb
+eines Blocks** lesbar sind und bei `count=1` zwangsläufig Exception 2 werfen.
+Sie als Kontrolle für einen `count=1`-Lauf zu wählen war mein Fehler: Ich habe
+sie genommen, weil sie „gültig, aber konstant null" sind — das Muster eines
+leeren PV4-Feldes —, und dabei übersehen, dass ihre Gültigkeit an den Blockread
+gebunden ist.
+
+**Der Lauf bleibt dadurch belastbar**, denn alle einzeln lesbaren Kontrollen
+gelangen ausnahmslos, über die gesamten 3,4 Minuten verteilt. Der stärkste
+Beleg ist 10014: Der SOC **stieg während des Laufs von 5 auf 6 %**. Ein
+totes oder eingefrorenes Registerabbild liefert keinen sich ändernden Wert.
+Die Verbindung stand, und das Gerät arbeitete.
+
+Nebenbei reproduziert der Fehlschlag die Start-/Count-Validierung aus
+`REGISTER.md` ein weiteres Mal, diesmal unter Produktion statt bei Nacht.
+
+**Achtung bei Wiederholung:** Die automatische Schlusszeile des Skripts lautete
+„Kontrolle fehlgeschlagen — Lauf NICHT belastbar". Dieses Urteil war durch die
+falsche Kontrollauswahl ausgelöst, nicht durch einen Mangel des Laufs. Die
+Kontrollliste ist inzwischen auf 10002, 10014, 10156, 10167, 10171 und 10172
+korrigiert — letztere drei sind einzeln lesbar *und* bewegen sich unter
+Produktion, belegen also zusätzlich, dass tatsächlich eingespeist wird.
+
+Skript: `stichprobe.py`, read-only, ausschließlich FC04 mit `count=1`,
+wiederholbar über die feste Saat.
+
+### 9.3 Nicht ausgeführt, weil untersagt
+
+**FC43 (Read Device Identification).** Weiterhin nicht ausgeführt. Ich halte es
+für den letzten wirklich aussichtsreichen Schritt: MEI Typ 0x0E, Objekt-IDs
+0x80–0xFF sind herstellerspezifisch und enthalten bei manchen Wechselrichtern
+die Registerkarte selbst. Reiner Lesezugriff, eine einzige Anfrage genügt für
+die Ja/Nein-Frage. **Nur nach ausdrücklicher Freigabe.**
+
+---
+
+## 10. Was diese Arbeit zeigt — und was nicht
 
 **Sie zeigt:**
 
-- Der methodische Einwand des Auftraggebers ist berechtigt und quantifiziert:
-  99,3 % des Adressraums sind nie einzeln angesprochen worden, und die fünf
-  bekannten isolierten Register beweisen, dass genau dieser Effekt real ist.
-- Das Gerät erlaubt nur drei gleichzeitige Sitzungen — ein neuer, belegter
-  Protokollbefund, der in die Registerkarte gehört und der erklärt, warum ein
-  vierter Client scheitert.
-- 10205 ist der AC-Ausgangsstrom, jetzt mit einem Test, der die beiden
-  Hypothesen sauber trennt (24:0) statt sich auf eine Korrelation zu stützen.
-- In 229 Messpunkten über eine PV-Spanne von 60–810 W bewegt sich **kein**
-  beobachtetes Register mit dem PV4-Restwert, und die Negativkontrolle
-  bestätigt, dass das Fenster taugt.
-- Sechs bisher unbelegte Adressen (10251, 10253, 10255, 10257, 10263, 10265)
-  sind gültig und identifiziert; 10251 = 51 bestätigt die Vorhersage aus
-  `PV4.md` §7 exakt.
+- Der methodische Einwand war berechtigt: Der Einzeladress-Sweep hat **12
+  Register gefunden, die 5085 Blockanfragen nicht gefunden haben**, darunter
+  zwei in keiner Herstellerdokumentation (10006, 10015) und acht in einem
+  Bereich, der als „durchgehend Exception 2" abgeschrieben war.
+- Für 10000–11000, 32700–33100 und 59900–60500 ist der Nullbefund jetzt
+  **lückenlos** statt „nicht gefunden": 2003 von 2003 Adressen beantwortet.
+- Unit 0 bedient dasselbe Registerabbild wie Unit 1 (103/107 identisch, die
+  4 Abweichungen sind die volatilsten Größen).
+- 10205 ist der AC-Ausgangsstrom, belegt durch einen Test, der die Hypothesen
+  trennt (24:0) statt sich auf eine Korrelation zu stützen.
+- Die Strangströme sind **INT16**, und der laufende Sampler rechnet sie falsch
+  — mit Fehlern von 20 000 W in der Dämmerung.
+- Das Gerät erlaubt **nur drei gleichzeitige Modbus-Sitzungen**.
 
 **Sie zeigt nicht:**
 
-- Dass es kein PV4-Register gibt. Der geplante lückenlose Sweep konnte nicht
-  laufen. **Der Nullbefund gilt weiterhin nur für die 252 als gültig bekannten
-  und die 154 beobachteten Adressen** — nicht für den Adressraum.
-- Dass Unit 0 dasselbe Registerabbild hat wie Unit 1. Das beruht nach wie vor
-  auf einer einzigen Stichprobe.
-- Dass 10173–10175 und 10183/10187 auch nachts null bleiben. Das entscheidet
-  der laufende Sampler bis morgen früh.
+- ~~Dass im gesamten Adressraum kein PV4-Register steht. Geprüft sind 2003 von
+  65 536 Adressen; rund 65 000 bleiben offen (Kosten: 7,2 h).~~ **Eingelöst am
+  12.08.:** Alle 65 536 Adressen sind einzeln geprüft, null Treffer
+  (Abschnitt 9.2), unter Produktion gegengeprüft (Abschnitt 9.2a). Dieser
+  Vorbehalt gilt nicht mehr.
+- Dass das Aliasing FC03/FC04 auch für die 22 volatilen Register gilt — der
+  Test hatte 6–13 Minuten Zeitversatz. Nachholbar in 2 Minuten.
+- Dass 10015 der State of Health ist. Belegt ist nur: konstant 100 bei einem
+  SOC von 90–94, in keiner Herstellerdefinition, und **kein** PV4-Register.
+  Zu klären wäre es über einen Langzeitverlauf oder einen Akku mit sichtbarer
+  Alterung.
 
-**Der ehrliche Stand:** Die Frage „hat Strang 4 ein eigenes Register?" ist
-nach wie vor mit **Nein für alles, was je gelesen wurde**, und mit
-**Unbekannt für 99,3 % des Adressraums** zu beantworten. Der Auftraggeber hat
-recht, dass diese Lücke besteht. Sie zu schließen kostet 14 Minuten für die
-aussichtsreichen Bereiche und sieben Stunden für Vollständigkeit — beides
-scheitert derzeit allein an einem freien Verbindungsplatz.
+**Der Stand der Beweislast:** Strang 4 hat kein eigenes Modbus-Register. Das
+Gerät misst ihn — die Gesamtleistung in 10002 enthält ihn —, veröffentlicht
+ihn aber nicht. Vier MPP-Tracker, drei Registerpaare. Der Restwert
+`PV4 = 10002 − (U₁I₁+U₂I₂+U₃I₃)` bleibt die einzige Messmethode, und sie ist
+nach der INT16-Korrektur auch in der Dämmerung wieder belastbar.
