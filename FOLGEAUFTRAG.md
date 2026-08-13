@@ -409,6 +409,21 @@ alle in dieselbe Richtung:
 | 3 | 13.08., kurz vor 15:00 | PV3 frei ab 14:37 | **64 %**, Doppelsignatur Verschattung |
 | 4 | 13.08., 15:50 | PV4 frei ab 15:36 | **65 %** (PV1 355 W, PV2 366 W, PV3 372 W, **PV4 237 W**) |
 
+**Punkt 4 ist beziffert, nicht nur beobachtet.** PV4 kam noch in derselben
+Sitzung frei; der Verlauf von `sensor.pv_modul_4_leistungsanteil` gibt die
+Verspätung auf die Minute:
+
+| Kriterium | Zeitpunkt | Verspätung gegen 15:36 |
+|---|---|---|
+| 15:40–15:49 | 57–72 %, unter der Hysteresegrenze | — |
+| erstes Überschreiten von `SHADE_OFF` = 0,70 | 15:49:36 | **+13,6 min** |
+| dauerhaft darüber | 15:51:06 | **+15 min** |
+| voll frei (> 90 %) | 15:54:55 | **+19 min** |
+
+Das Profil endet also rund **eine Viertelstunde zu früh**. Die Ablesung des
+Betreibers um 15:50 (65 %) deckt sich mit dem aufgezeichneten Wert 64,7 % um
+15:50:36 — die Reihe ist konsistent.
+
 Die ersten beiden unterschätzen die **Tiefe**, die letzten beiden das **Ende**
 des Schattens. Vier konsistente Punkte an zwei verschiedenen Tagen und an drei
 verschiedenen Strängen sind kein Zufall mehr.
