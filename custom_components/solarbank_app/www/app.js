@@ -111,8 +111,7 @@ class SolarbankApp extends HTMLElement {
     // M3-Tokens zuerst, danach die Ansichts-Styles - beide MUESSEN in den
     // Shadow Root. Regeln aus document.head erreichen ihn nicht.
     const style = document.createElement('style');
-    style.textContent = [M3_CSS, VIEWS_CSS, HAUS_CSS].filter(Boolean).join('
-');
+    style.textContent = [M3_CSS, VIEWS_CSS, HAUS_CSS].filter(Boolean).join('\n');
     this._root.appendChild(style);
 
     const shell = document.createElement('div');

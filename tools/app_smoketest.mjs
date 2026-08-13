@@ -143,6 +143,20 @@ const attrappe = {
 
 // --- Testlauf -----------------------------------------------------------
 
+// app.js MUSS mitgeladen werden. Eine fruehere Fassung dieses Tests liess
+// es aus - und genau dort sass der naechste Fehler: das Modul warf beim
+// Laden, die Seite blieb komplett leer, und der Test meldete "alles gruen".
+let appFehler = null;
+try {
+  await import('../custom_components/solarbank_app/www/app.js');
+  console.log('app.js laedt durch\n');
+} catch (e) {
+  appFehler = e;
+  console.log(`app.js LAEDT NICHT: ${e.message}`);
+  console.log(String(e.stack || '').split('\n').slice(0, 5).join('\n'));
+  console.log('');
+}
+
 const { VIEWS } = await import('../custom_components/solarbank_app/www/views.js');
 
 const ctx = { data: attrappe, hass: attrappe.hass, go() {} };
@@ -164,4 +178,4 @@ for (const v of VIEWS) {
 const oben = VIEWS.filter((v) => v.top).length;
 console.log(`\nNavigationsziele: ${oben} (M3 empfiehlt 3 bis 5)`);
 console.log(fehler === 0 ? 'Alle Ansichten bauen durch.' : `${fehler} Ansicht(en) defekt.`);
-process.exit(fehler === 0 && oben >= 3 && oben <= 5 ? 0 : 1);
+process.exit(!appFehler && fehler === 0 && oben >= 3 && oben <= 5 ? 0 : 1);
