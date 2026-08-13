@@ -81,6 +81,30 @@ Fakten, `packages/solarbank_diagnose.yaml` bewertet sie. Zehn Prüfungen,
 Gesamtzustand in `sensor.solarbank_diagnose_gesamtzustand`, Alarmierung mit
 Zustandstrigger **plus** 5-Minuten-Zeitmuster. Details in `docs/DIAGNOSE.md`.
 
+**Verschattungskosten** — vier Sensoren, seit 13.08.:
+
+| Entity | Bedeutung |
+|---|---|
+| `sensor.pv_theoretische_leistung` | was die Anlage ohne Verschattung lieferte |
+| `sensor.pv_verschattungsverlust` | momentaner Verlust in W |
+| `sensor.pv_theoretische_energie_tag` | kWh, die möglich gewesen wären |
+| `sensor.pv_verschattungsverlust_tag` | **kWh, die der Giebel heute gekostet hat** |
+
+Reine Messung, kein Modell — kein Forecast, keine gelernte Tagesform, kein
+Systemgain. Referenz ist das **Mittel aller Stränge innerhalb 10 % des
+besten**, nicht das Maximum: Letzteres überschätzt das wahre Mittel um 2,57 %
+im Median (gemessen an 355 Punkten des 12.08.). Der zweithöchste Wert wäre
+glatter, wurde aber verworfen — deckt der Schatten drei Stränge, wäre er
+selbst verschattet und die Referenz bräche zusammen, mit Fehlerrichtung
+„kein Problem".
+
+Klarhimmelbezug über `poa_w_m2` (reine Geometrie) mal Datenblattleistung,
+nicht über die gelernten Größen — die sind bei ungelerntem Stand Platzhalter.
+
+**Dashboard** — `pv-module`, fünf Views: Übersicht, Module, Verschattung,
+Verläufe, Diagnose. `solarbank-diagnose` ist inhaltlich verwaist, aus der
+Seitenleiste genommen, aber nicht gelöscht.
+
 ### Gesicherte Befunde
 
 - **PV4 hat kein eigenes Register.** Adressraum vollständig geprüft. Der
@@ -165,12 +189,49 @@ kann das Modell Energie nicht erfinden, sondern nur zeitlich falsch verteilen.
 Der Fehler schrumpft deshalb im Lauf des Nachmittags von selbst — je weniger
 Resttag, desto weniger Umverteilungsspielraum.
 
-### 3.2 Tagesertrag je Modul — nie gebaut
+### 3.2 Tagesertrag je Modul — bewusst zurückgestellt
 
-Riemann-Integral plus Utility Meter je Strang. Für Strang 4 auf der
-Differenzleistung, die exakt ist. Damit ließe sich erstmals sagen, wie viel
-Ertrag die Verschattung über einen Monat tatsächlich kostet — die Zahl, die
-in die Ausbauentscheidung gehört.
+Riemann-Integral plus Utility Meter je Strang, vier Einzelerträge.
+
+**Das ist nicht mehr dringend.** Die ursprüngliche Begründung war, den
+Verschattungsverlust beziffern zu können — das leistet seit dem 13.08. bereits
+`sensor.pv_verschattungsverlust_tag` direkt in kWh pro Tag. Vier zusätzliche
+Einzelerträge bedeuten acht weitere Helfer und zusätzliche Recorder-Last,
+ausgerechnet vor dem noch offenen Punkt 3.4.
+
+**Empfehlung: erst nach 3.4 entscheiden**, ob die Einzelerträge den Aufwand
+wert sind. Sie beantworten eine andere Frage als der Gesamtverlust — nämlich
+welcher Strang über den Monat am meisten verliert. Für die Ausbauentscheidung
+reicht voraussichtlich der Gesamtverlust.
+
+### 3.2b Blindfleck-Pfad am ersten bedeckten Tag prüfen
+
+`sensor.pv_theoretische_leistung` und `sensor.pv_verschattungsverlust` haben
+eine Absicherung gegen den Fall, dass **alle vier Stränge gleichzeitig im
+Schatten liegen** — dann gibt es keine unverschattete Referenz mehr, und ein
+naives Verfahren meldete Verlust null, obwohl der Verlust maximal ist.
+
+Erkennung über zwei Attribute: `traeger_straenge` (wie viele Stränge liegen
+innerhalb 10 % des besten) und `anteil_klarhimmel`. Bei vier trägen Strängen
+und einem Klarhimmelanteil unter 0,50 liefern beide Sensoren `unknown` mit
+`grund = "Bewoelkung oder Totalverschattung, nicht unterscheidbar"`.
+
+**Dieser Pfad ist nie live eingetreten** — bei klarem Himmel steht
+`traeger_straenge` auf 1 bis 2. Belegt ist er nur durch 20 Unit-Tests
+(`tools/test_referenzlogik.py`) und die Rechnung.
+
+Zu prüfen am ersten bedeckten Tag:
+
+- Greift die Erkennung wie gedacht?
+- **Die Schwelle 0,50 ist gesetzt, nicht hergeleitet.** Ein klarer Tag liegt
+  bei 0,9. Wo ein trüber Tag tatsächlich landet, ist ungemessen.
+- Stundenlanges `unknown` ist bei Bewölkung *korrekt*, sieht aber nach Ausfall
+  aus. Prüfen, ob das im Dashboard verständlich dargestellt ist.
+
+Der Fall ist im Winter der Regelfall, nicht die Ausnahme: Dann legt sich der
+A-Schatten mit den Schenkeln über die ganze Reihe, statt sie mit der Spitze zu
+streifen. Die Fehlerrichtung ohne Absicherung wäre die denkbar schlechteste —
+„kein Problem", obwohl der Verlust am größten ist.
 
 ### 3.3 `sensor.pv_drosselung_leistung` — Bestandsschutz-Umbau offen
 
@@ -288,6 +349,17 @@ sie sonst noch jemand liest.**
   **aus** ist und das Gerät in `self_consumption` läuft.
 - **Nach jeder Änderung prüfen**, ob `anker_solix_official` weiterhin frische
   Werte liefert. Bricht sie weg: sofort trennen und melden.
+- **Das Repo ist NICHT das Deployment.** Home Assistant liest ausschließlich
+  aus `\\192.168.178.43\config\`; `C:\Users\User\solarbank-pv-modul` ist eine
+  Arbeitskopie. Wer nur ins Repo schreibt und neu startet, wartet fünf Minuten
+  auf nichts — **es gibt keine Fehlermeldung**, die Entities fehlen einfach.
+  Das ist am 13.08. einem Agenten passiert. Nach jedem Kopieren per SHA256
+  gegenprüfen, dass Repo und Deployment übereinstimmen.
+- **Das Dashboard kann sich zwischendurch ändern.** Der Betreiber bearbeitet
+  es im Browser. Am 13.08. hatte er `PV gesamt (Modbus)` als fünfte Kurve
+  ergänzt; der `config_hash`-Konflikt hat es aufgedeckt, die Änderung wurde
+  übernommen statt überschrieben. **Bei einem 409-Konflikt niemals `force`** —
+  neu lesen, eigene Änderung daraufsetzen, erneut schreiben.
 - **Änderungen an `custom_components/` brauchen einen HA-Neustart** — sonst
   importiert HA die geänderten Module nicht. Ein Neustart dauert gemessen
   rund 5 Minuten.
