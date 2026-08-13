@@ -13,6 +13,9 @@ Bescheid, waere schlimmer als eine ehrliche Konstante.
 Zur Benennung: has_entity_name ist bewusst False und die entity_id wird
 explizit gesetzt, wie in solarbank_pv. Sonst stellt Home Assistant den
 Geraetenamen voran und erzeugt sensor.pv_lernprognose_pv_lernen_pegel.
+Der Anzeigename traegt deshalb KEIN eigenes Praefix: Home Assistant
+stellt den Geraetenamen "PV Lernprognose" ohnehin voran, und ein
+zweites "PV Lernen" davor las sich doppelt.
 """
 
 from __future__ import annotations
@@ -104,7 +107,7 @@ class PegelSensor(Basis):
     """Pegelfaktor gegen Forecast.Solar."""
 
     _schluessel = "pegelfaktor"
-    _anzeigename = "PV Lernen Pegelfaktor"
+    _anzeigename = "Pegelfaktor"
     _attr_icon = "mdi:scale-balance"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 3
@@ -139,7 +142,7 @@ class WirkungsgradSensor(Basis):
     """Speicherwirkungsgrad aus der Tagesenergiebilanz."""
 
     _schluessel = "speicherwirkungsgrad"
-    _anzeigename = "PV Lernen Speicherwirkungsgrad"
+    _anzeigename = "Speicherwirkungsgrad"
     _attr_icon = "mdi:battery-sync"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 3
@@ -174,7 +177,7 @@ class TagesformSensor(Basis):
     """Gelernte Tagesform am aktuellen Sonnenazimut."""
 
     _schluessel = "tagesform"
-    _anzeigename = "PV Lernen Tagesform"
+    _anzeigename = "Tagesform"
     _attr_icon = "mdi:weather-sunny-alert"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 3
@@ -210,7 +213,7 @@ class HauslastJetztSensor(Basis):
     """Gelernte Hauslast fuer die laufende Stunde."""
 
     _schluessel = "hauslast"
-    _anzeigename = "PV Lernen Hauslast"
+    _anzeigename = "Hauslast"
     _attr_icon = "mdi:home-lightning-bolt"
     _attr_device_class = SensorDeviceClass.POWER
     _attr_native_unit_of_measurement = UnitOfPower.WATT
@@ -264,7 +267,7 @@ class SystemgainSensor(Basis):
     """Effektive Anlagenleistung je Einstrahlung."""
 
     _schluessel = "systemgain"
-    _anzeigename = "PV Lernen Systemgain"
+    _anzeigename = "Systemgain"
     _attr_icon = "mdi:solar-panel-large"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "W/(W/m²)"
@@ -296,7 +299,7 @@ class TruebungSensor(Basis):
     """Bewoelkungsindex - der ehemalige Faktor k, jetzt ohne Schattenfehler."""
 
     _schluessel = "truebung"
-    _anzeigename = "PV Lernen Truebung"
+    _anzeigename = "Truebung"
     _attr_icon = "mdi:weather-partly-cloudy"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 3
@@ -328,7 +331,7 @@ class KlarhimmelSensor(Basis):
     """Erwartete Leistung bei klarem Himmel, mit Verschattung."""
 
     _schluessel = "klarhimmelleistung"
-    _anzeigename = "PV Lernen Klarhimmelleistung"
+    _anzeigename = "Klarhimmelleistung"
     _attr_icon = "mdi:white-balance-sunny"
     _attr_device_class = SensorDeviceClass.POWER
     _attr_native_unit_of_measurement = UnitOfPower.WATT
@@ -363,7 +366,7 @@ class LernstandSensor(Basis):
     """
 
     _schluessel = "lernstand"
-    _anzeigename = "PV Lernen Lernstand"
+    _anzeigename = "Lernstand"
     _attr_icon = "mdi:school"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -423,7 +426,7 @@ class KennwerteSensor(Basis):
     """Anlagenkennwerte, aus dem Geraet gelesen statt fest gesetzt."""
 
     _schluessel = "anlagenkennwerte"
-    _anzeigename = "PV Lernen Anlagenkennwerte"
+    _anzeigename = "Anlagenkennwerte"
     _attr_icon = "mdi:tag-check"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -449,7 +452,7 @@ class PrognoseSensor(Basis):
     """
 
     _schluessel = "speicher_prognose"
-    _anzeigename = "PV Lernen Speicher Prognose"
+    _anzeigename = "Speicher Prognose"
     _attr_icon = "mdi:battery-clock"
 
     @property
@@ -508,7 +511,7 @@ class ZielErreichtSensor(Basis):
     """
 
     _schluessel = "ziel_erreicht_um"
-    _anzeigename = "PV Lernen Ziel erreicht um"
+    _anzeigename = "Ziel erreicht um"
     _attr_icon = "mdi:clock-fast"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
