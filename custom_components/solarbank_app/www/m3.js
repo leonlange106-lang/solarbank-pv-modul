@@ -601,8 +601,8 @@ button, input, select {
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  height: 80px;
-  padding: 4px 0;
+  height: calc(80px + env(safe-area-inset-bottom, 0px));
+  padding: 4px 0 calc(4px + env(safe-area-inset-bottom, 0px));
   background: var(--md-sys-color-surface-container);
   border-top: 1px solid var(--md-sys-color-outline-variant);
   z-index: 20;
@@ -704,6 +704,62 @@ button, input, select {
    Ergänzende, nicht im Kernkatalog geforderte Klassen, die app.js für die
    Panel-Hülle benötigt. Nutzen ausschließlich die obigen Tokens.
    ========================================================================== */
+
+
+/* -----------------------------------------------------------------------
+   TOUCH UND SCROLLEN
+
+   Vier Dinge, die auf dem Telefon sonst schiefgehen und am Schreibtisch
+   nie auffallen:
+
+   1. Wischen ueber einen Schieberegler verstellte ihn, statt zu scrollen.
+      "touch-action: pan-y" gibt die vertikale Geste immer an die Seite ab;
+      der Regler bekommt nur die waagerechte.
+   2. iOS legte bei jeder Beruehrung ein graues Rechteck ueber die Karte.
+   3. Die Navigationsleiste sass unter dem Home-Indikator - die
+      Beschriftungen klebten am unteren Rand. env(safe-area-inset-bottom)
+      schafft den Platz, den das Geraet tatsaechlich braucht.
+   4. Scrollen am Ende der Liste zog die dahinterliegende Seite mit
+      (Scroll-Chaining) und loeste auf iOS das Neuladen aus.
+   ----------------------------------------------------------------------- */
+
+:host, .md-app-shell, .md-app-shell * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Regler: senkrechtes Scrollen gewinnt immer. */
+.md-slider,
+input[type="range"] {
+  touch-action: pan-y;
+}
+
+/* Tippbare Flaechen: kein 300-ms-Warten auf einen Doppeltipp, Scrollen
+   bleibt moeglich. NICHT "none" - das wuerde das Scrollen abwuergen. */
+.md-nav-item,
+.md-card,
+.md-list-item,
+.md-chip,
+.md-fab,
+.md-app-bar-back,
+.md-segmented button,
+sb-tile {
+  touch-action: manipulation;
+}
+
+.md-view {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Platz fuer die feste Navigationsleiste plus Home-Indikator, damit der
+     letzte Eintrag nicht darunter verschwindet. */
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 601px) {
+  /* Ab Tablet steht die Navigation links, unten wird kein Platz gebraucht. */
+  .md-view { padding-bottom: 24px; }
+}
 
 .md-app-shell {
   display: flex;
@@ -934,6 +990,32 @@ export function ripple(el) {
     // Nur die primäre Taste bzw. Touch/Stift lösen eine Welle aus.
     if (typeof ev.button === 'number' && ev.button !== 0) return;
 
+    // Eine Wische-Geste ist kein Tippen. Bewegt sich der Finger weiter als
+    // ein paar Pixel, war es Scrollen - dann muss die Welle wieder weg,
+    // sonst blinkt beim Durchscrollen jede Karte auf, die man streift.
+    const startX = ev.clientX;
+    const startY = ev.clientY;
+    let abgebrochen = false;
+    const beobachten = (e2) => {
+      if (abgebrochen) return;
+      if (Math.abs(e2.clientY - startY) > 8 || Math.abs(e2.clientX - startX) > 8) {
+        abgebrochen = true;
+        aufraeumen();
+      }
+    };
+    const abbrechen = () => { abgebrochen = true; aufraeumen(); };
+    const aufraeumen = () => {
+      el.removeEventListener('pointermove', beobachten);
+      el.removeEventListener('pointercancel', abbrechen);
+      window.removeEventListener('pointerup', loesen);
+      if (abgebrochen && welleRef && welleRef.isConnected) welleRef.remove();
+    };
+    const loesen = () => aufraeumen();
+    let welleRef = null;
+    el.addEventListener('pointermove', beobachten);
+    el.addEventListener('pointercancel', abbrechen);
+    window.addEventListener('pointerup', loesen, { once: true });
+
     const rect = el.getBoundingClientRect();
     const durchmesser = Math.max(rect.width, rect.height) * 2;
     const wave = document.createElement('span');
@@ -943,6 +1025,8 @@ export function ripple(el) {
     wave.style.left = `${ev.clientX - rect.left - durchmesser / 2}px`;
     wave.style.top = `${ev.clientY - rect.top - durchmesser / 2}px`;
     el.appendChild(wave);
+    welleRef = wave;
+    if (abgebrochen) wave.remove();
 
     const entfernen = () => wave.remove();
     wave.addEventListener('animationend', entfernen);

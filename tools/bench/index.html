@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solarbank-App — Pruefstand</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #101014; }
+  solarbank-app { display: block; height: 100vh; }
+  #bench-fehler {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999;
+    background: #7f1d1d; color: #fff; font: 13px/1.4 monospace;
+    padding: 8px 12px; max-height: 40vh; overflow: auto; white-space: pre-wrap;
+  }
+  #bench-fehler:empty { display: none; }
+</style>
+</head>
+<body>
+<!--
+  Pruefstand fuer die Solarbank-App.
+
+  WARUM ES DAS GIBT
+  -----------------
+  Die App laeuft normalerweise als panel_custom IN Home Assistant. Um sie dort
+  zu pruefen, braeuchte es eine Anmeldung. Diese Seite laedt stattdessen
+  dieselben Module in einem normalen Browser und stellt ein nachgebautes
+  `hass`-Objekt bereit. Geprueft wird damit genau das, was mir gehoert - Aufbau,
+  Gestaltung, Laufzeitfehler - ohne Zugangsdaten und ohne die echte Anlage zu
+  beruehren.
+
+  Aufruf ueber tools/bench/serve.py, NICHT per file:// - ES-Module brauchen
+  http://.
+-->
+<div id="bench-fehler"></div>
+
+<script>
+  // Jeder Fehler landet sichtbar auf der Seite UND in der Konsole, damit ein
+  // Screenshot allein schon die Ursache zeigt.
+  const kasten = document.getElementById('bench-fehler');
+  const zeigen = (art, text) => {
+    kasten.textContent += `[${art}] ${text}\n`;
+    console.error(`[${art}]`, text);
+  };
+  window.addEventListener('error', (e) => zeigen('Fehler', `${e.message}  (${e.filename}:${e.lineno})`));
+  window.addEventListener('unhandledrejection', (e) => zeigen('Promise', String((e.reason && e.reason.message) || e.reason)));
+</script>
+
+<script type="module">
+import { erzeugeHass } from './mock-hass.js';
+
+const app = document.createElement('solarbank-app');
+document.body.appendChild(app);
+
+// Modul erst NACH dem Einhaengen laden, damit ein Fehler beim Definieren des
+// Elements sichtbar wird statt still zu bleiben.
+try {
+  await import('../../custom_components/solarbank_app/www/app.js');
+} catch (e) {
+  document.getElementById('bench-fehler').textContent =
+    `[Modul] app.js laedt nicht: ${e.message}\n${e.stack || ''}`;
+  throw e;
+}
+
+// Szenario ueber ?szenario=... waehlbar: tag | nacht | stoerung
+const szenario = new URLSearchParams(location.search).get('szenario') || 'tag';
+app.hass = erzeugeHass(szenario);
+
+// Takt wie in HA: das Panel bekommt hass regelmaessig neu gesetzt.
+setInterval(() => { app.hass = erzeugeHass(szenario); }, 5000);
+
+// Ansicht ueber #/... waehlbar, damit der Prueflauf jede einzeln aufrufen kann.
+if (!location.hash) location.hash = '#/start';
+
+window.__benchBereit = true;
+</script>
+</body>
+</html>
