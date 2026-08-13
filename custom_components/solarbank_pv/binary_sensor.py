@@ -29,13 +29,10 @@ from . import SolarbankData
 from .const import (
     CELL_OVER_AMBIENT,
     CONF_OUTDOOR_TEMP,
-    CURTAIL_VOC_FRACTION,
     DEFAULT_OUTDOOR_TEMP,
     DOMAIN,
     MIN_CURRENT_FOR_RATIO,
     MIN_POWER_FOR_RATIO,
-    MODULE_TEMP_COEFF,
-    MODULE_VOC_STC,
     PV4_SHADE_CONFIRM,
     REGISTERS_BY_KEY,
     SHADE_OFF,
@@ -43,6 +40,7 @@ from .const import (
     STRINGS,
 )
 from .coordinator import SolarbankGroupCoordinator
+from .physik import curtail_threshold, is_curtailed
 from .sensor import display_name, other_median, read_value, string_powers
 
 _LOGGER = logging.getLogger(__name__)
@@ -297,22 +295,10 @@ class CurtailmentBinarySensor(SolarbankBinaryEntity):
         voltages = [self._value(v) for _, _, v, _ in STRINGS]
         currents = [self._value(i) for _, _, _, i in STRINGS]
 
-        if ambient is None or any(v is None for v in voltages) or any(c is None for c in currents):
-            self._threshold = None
-            self._state = None
-            super()._handle_coordinator_update()
-            return
-
-        cell = ambient + CELL_OVER_AMBIENT
-        voc = MODULE_VOC_STC * (1.0 - MODULE_TEMP_COEFF * (cell - 25.0))
-        threshold = CURTAIL_VOC_FRACTION * voc
-        self._threshold = round(threshold, 1)
-
-        # Nachts steht die Spannung ohne Last ebenfalls hoch. Ohne einen
-        # Mindeststrom auf mindestens einem Strang waere jede Nacht eine
-        # gemeldete Abregelung.
-        producing = any(c >= MIN_CURRENT_FOR_RATIO for c in currents if c is not None)
-        self._state = producing and all(v >= threshold for v in voltages if v is not None)
+        # Schwelle und Entscheidung stehen in physik.py, weil sensor.py
+        # dieselbe Sperre fuer die theoretische Leistung braucht.
+        self._threshold = None if ambient is None else round(curtail_threshold(ambient), 1)
+        self._state = is_curtailed(voltages, currents, ambient)
 
         super()._handle_coordinator_update()
 

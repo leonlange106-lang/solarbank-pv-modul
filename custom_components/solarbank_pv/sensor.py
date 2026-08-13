@@ -25,6 +25,8 @@ from homeassistant.util import slugify
 
 from . import SolarbankData
 from .const import (
+    CONF_OUTDOOR_TEMP,
+    DEFAULT_OUTDOOR_TEMP,
     DOMAIN,
     MIN_CURRENT_FOR_RATIO,
     MIN_CURRENT_FOR_TEMP,
@@ -43,6 +45,7 @@ from .const import (
 from .coordinator import SolarbankGroupCoordinator
 from .diagnose import build_health_sensors
 from .modbus_reader import decode
+from .physik import is_curtailed
 
 
 def display_name(name: str) -> str:
@@ -77,6 +80,12 @@ async def async_setup_entry(
     entities.append(String4VoltageSensor(strings, data))
     entities.append(String4CurrentSensor(strings, data))
     entities.append(PowerRatioSensor(strings, data, "pv4", "Modul 4", 3))
+
+    # Unverschattete Referenz aus dem besten der vier Straenge. Braucht die
+    # Aussentemperatur fuer dieselbe Abregelungssperre wie der Binaersensor.
+    outdoor = entry.data.get(CONF_OUTDOOR_TEMP, DEFAULT_OUTDOOR_TEMP)
+    entities.append(TheoreticalPowerSensor(strings, data, outdoor))
+    entities.append(ShadingLossSensor(strings, data, outdoor))
 
     entities.extend(build_health_sensors(data))
 
@@ -457,6 +466,183 @@ class PowerRatioSensor(StringDerivedEntity):
             "mindestleistung_referenz_w": MIN_POWER_FOR_RATIO,
             "leistung_gemessen": exakt,
         }
+
+
+class UnshadedReferenceEntity(StringDerivedEntity):
+    """Basis fuer theoretische Leistung und Verschattungsverlust.
+
+    Die Methode ist reine Messung, kein Modell: vier baugleiche, koplanare
+    Module mit je eigenem MPP-Tracker. Der Schatten ist ein schmaler
+    wandernder Streifen (siehe docs/VERSCHATTUNG-PROFIL.md), also liefert zu
+    jedem Zeitpunkt mindestens einer unverschattet. Der beste der vier ist
+    damit die unverschattete Referenz:
+
+        P_theoretisch = 4 * max(P1..P4)
+
+    Der Vorteil gegenueber dem Prognosemodell: das gilt ab der ersten
+    Sekunde. Kein Forecast, keine gelernte Tagesform, kein Systemgain, kein
+    Einschwingen.
+
+    ZWEI GRENZEN, die der Betreiber kennen muss:
+
+    Bewoelkung ist kein Verschattungsverlust. Zieht eine Wolke ueber die
+    ganze Anlage, faellt das Maximum mit und der ausgewiesene Verlust geht
+    korrekt gegen null. Das ist gewollt und kein Fehler.
+
+    Verschmutzung oder ein Defekt, die alle vier Module gleich betreffen,
+    sieht dieses Verfahren grundsaetzlich nicht - es misst nur Unterschiede
+    zwischen den Straengen. Dafuer ist das Prognosemodell zustaendig.
+    """
+
+    def __init__(self, coordinator, data, unique_suffix, name, outdoor_entity) -> None:
+        super().__init__(coordinator, data, unique_suffix, name)
+        self._outdoor_entity = outdoor_entity
+        self._grund: str = "noch keine Messung"
+        self._bester_index: int | None = None
+
+    def _outdoor_temp(self) -> float | None:
+        state = self.hass.states.get(self._outdoor_entity)
+        if state is None or state.state in ("unknown", "unavailable"):
+            return None
+        try:
+            return float(state.state)
+        except ValueError:
+            return None
+
+    def _reference(self) -> float | None:
+        """Vier mal die beste Strangleistung, oder None mit Begruendung.
+
+        None ist hier nie ein Ausrutscher, sondern immer eine Aussage: die
+        Rechnung ist gerade nicht zulaessig. Der Grund steht im Attribut
+        `grund`, damit im Verlauf nachvollziehbar bleibt, warum eine Luecke
+        entstanden ist.
+        """
+        self._bester_index = None
+
+        if not self.coordinator.data:
+            self._grund = "keine Registerdaten"
+            return None
+
+        werte, _ = string_powers(self.coordinator.data)
+        if any(w is None for w in werte):
+            self._grund = "Strangleistung unvollstaendig"
+            return None
+
+        # Abregelung macht die Rechnung ungueltig: bei vollem Speicher drosselt
+        # der Wechselrichter ALLE vier Tracker gleichzeitig. Dann ist auch das
+        # Maximum gedrueckt und die theoretische Leistung waere zu niedrig -
+        # der ausgewiesene Verlust also faelschlich klein. Lieber unknown als
+        # eine falsche Zahl, die still in die Tagesbilanz einlaeuft.
+        voltages = [self._reg_value(v) for _, _, v, _ in STRINGS]
+        currents = [self._reg_value(i) for _, _, _, i in STRINGS]
+        gedrosselt = is_curtailed(voltages, currents, self._outdoor_temp())
+        if gedrosselt is None:
+            self._grund = "Abregelung nicht entscheidbar"
+            return None
+        if gedrosselt:
+            self._grund = "Abregelung aktiv, Referenz waere gedrueckt"
+            return None
+
+        bester = max(w for w in werte if w is not None)
+        # Nachts und bei sehr schwacher Einstrahlung ist die Aussage sinnlos.
+        # Dieselbe Untergrenze wie beim Leistungsanteil, hier auf den besten
+        # Strang angewandt.
+        if bester < MIN_POWER_FOR_RATIO:
+            self._grund = "Einstrahlung zu schwach"
+            return None
+
+        self._bester_index = werte.index(bester)
+        self._grund = "ok"
+        return 4.0 * bester
+
+    def _ist_leistung(self) -> float | None:
+        if not self.coordinator.data:
+            return None
+        return read_value(self.coordinator.data, REGISTERS_BY_KEY["pv_power_mb"])
+
+    def _basis_attribute(self) -> dict[str, object]:
+        namen = [label for _p, label, _v, _i in STRINGS] + ["Modul 4"]
+        return {
+            "modbus_datatype": "berechnet",
+            "modbus_function": 4,
+            "modbus_scale": 1,
+            "deutung_sicher": self._grund == "ok",
+            "grund": self._grund,
+            "referenzstrang": (
+                None if self._bester_index is None else namen[self._bester_index]
+            ),
+            # Strang 4 ist eine Differenz gegen die 10-W-gestufte Gesamtleistung
+            # und damit gröber als PV1-3. Er ist an rund 41 % der Messpunkte des
+            # 12.08. der beste Strang, laesst sich also nicht ausschliessen. Der
+            # Aufschlag ist klein: der Sprung zum Vorwert liegt im Median bei
+            # 32 W statt 24 W, im p90 sogar leicht darunter.
+            "referenz_ist_differenzwert": self._bester_index == 3,
+            "methode": "4 x max(P1..P4), unverschattete Referenz",
+            "mindestleistung_w": MIN_POWER_FOR_RATIO,
+            "gilt_nicht_bei": "Abregelung; gleichmaessige Verschmutzung",
+            "bewoelkung": "kein Verlust - das Maximum faellt mit",
+        }
+
+
+class TheoreticalPowerSensor(UnshadedReferenceEntity):
+    """Was die Anlage ohne Verschattung gerade liefern wuerde."""
+
+    _attr_native_unit_of_measurement = "W"
+    _attr_device_class = "power"
+    _attr_state_class = "measurement"
+    _attr_icon = "mdi:solar-power"
+
+    def __init__(self, coordinator, data, outdoor_entity) -> None:
+        super().__init__(
+            coordinator, data, "theoretical_power",
+            "PV Theoretische Leistung", outdoor_entity,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        wert = self._reference()
+        return None if wert is None else round(wert, 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return self._basis_attribute()
+
+
+class ShadingLossSensor(UnshadedReferenceEntity):
+    """Wieviel Leistung die Verschattung gerade kostet."""
+
+    _attr_native_unit_of_measurement = "W"
+    _attr_device_class = "power"
+    _attr_state_class = "measurement"
+    _attr_icon = "mdi:solar-panel-large"
+
+    def __init__(self, coordinator, data, outdoor_entity) -> None:
+        super().__init__(
+            coordinator, data, "shading_loss",
+            "PV Verschattungsverlust", outdoor_entity,
+        )
+        self._roh: float | None = None
+
+    @property
+    def native_value(self) -> float | None:
+        theoretisch = self._reference()
+        ist = self._ist_leistung()
+        if theoretisch is None or ist is None:
+            self._roh = None
+            return None
+        self._roh = theoretisch - ist
+        # Ein negativer Verlust ist physikalisch unmoeglich. Kleine negative
+        # Werte entstehen, weil die Gesamtleistung aus 10002 in 10-W-Stufen
+        # kommt, die Strangleistungen aber aus feinem U x I. Auf null geklemmt,
+        # der Rohwert bleibt im Attribut sichtbar.
+        return round(max(self._roh, 0.0), 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        attrs = self._basis_attribute()
+        attrs["rohdifferenz_w"] = None if self._roh is None else round(self._roh, 1)
+        attrs["auf_null_geklemmt"] = self._roh is not None and self._roh < 0
+        return attrs
 
 
 class String4EstimateEntity(StringDerivedEntity):

@@ -223,6 +223,89 @@ Der Vorbehalt bleibt: die *Uhrzeit*-Verschiebung faengt der Azimutbezug
 vollstaendig auf, die groessere **Schattenlaenge** bei tieferer Sonne nicht.
 Dafuer braeuchte es die Giebelhoehe und den Abstand, beides ist nicht gemessen.
 
+## Theoretische Leistung ohne Verschattung
+
+Das Profil sagt, *wann* verschattet wird. Zwei Sensoren sagen, *was es kostet* —
+und zwar ohne Modell, ohne Prognose und ohne Einschwingen:
+
+| Entity | Bedeutung |
+|---|---|
+| `sensor.pv_theoretische_leistung` | `4 x max(P1..P4)` in W |
+| `sensor.pv_verschattungsverlust` | `P_theoretisch - P_ist` in W, auf 0 geklemmt |
+
+### Warum das Maximum die richtige Referenz ist
+
+Vier baugleiche, koplanare Module mit je eigenem MPP-Tracker. Der Schatten ist
+ein schmaler wandernder Streifen — zu jedem Zeitpunkt liefert **mindestens
+einer unverschattet**. Der beste der vier ist damit die unverschattete
+Referenz, und weil alle vier identisch sind, gilt sie fuer die ganze Anlage.
+
+Gegenprobe am Tageslauf des 12.08.: **12,38 kWh theoretisch gegen 10,15 kWh
+real, also 2,23 kWh oder 18,1 % Verschattungsverlust an einem klaren Tag.**
+
+Der Vorteil gegenueber `pv_lernprognose`: das funktioniert ab der ersten
+Sekunde. Kein Forecast.Solar, keine gelernte Tagesform, kein Systemgain, kein
+`0 von 4 eingeschwungen`.
+
+### Wann die Sensoren bewusst nichts liefern
+
+`unknown` statt einer falschen Zahl, mit Begruendung im Attribut `grund`:
+
+| `grund` | Warum |
+|---|---|
+| `Abregelung aktiv, Referenz waere gedrueckt` | bei vollem Speicher drosselt der Wechselrichter **alle vier** Tracker gleichzeitig; dann ist auch das Maximum gedrueckt und der Verlust erschiene faelschlich klein |
+| `Abregelung nicht entscheidbar` | Aussentemperatur oder ein Strangregister fehlt — `None` ist hier nicht `nein` |
+| `Einstrahlung zu schwach` | bester Strang unter `MIN_POWER_FOR_RATIO` (15 W); nachts ist die Aussage sinnlos |
+| `Strangleistung unvollstaendig` | ein Register fehlt im Abbild |
+
+Die Abregelungssperre benutzt dieselbe Entscheidung wie
+`binary_sensor.pv_abregelung_erkannt`. Beide rufen `is_curtailed()` in
+`physik.py` auf — vorher stand die Schwelle nur im Binaersensor, zwei Kopien
+waeren ein Fehler, der erst auffiele, wenn jemand nur eine davon aendert.
+
+Das Tagesintegral bleibt in diesen Zeiten **stehen** statt zu raten: die
+Riemann-Integration akkumuliert nicht ueber `unknown`.
+
+### Drei Grenzen des Verfahrens
+
+**Bewoelkung ist kein Verschattungsverlust.** Zieht eine Wolke ueber die ganze
+Anlage, fallen alle vier gleichmaessig — das Maximum sinkt mit, der Verlust
+geht korrekt gegen null. Das ist gewollt und **kein Fehler**.
+
+**Gleichmaessige Verschmutzung oder ein Defekt an allen vier Modulen wird nicht
+erfasst.** Das Verfahren misst ausschliesslich Unterschiede *zwischen* den
+Straengen. Dafuer ist das Prognosemodell zustaendig, das gegen eine
+Klarhimmelerwartung rechnet.
+
+**PV4 als Referenz ist etwas gröber.** Strang 4 ist eine Differenz gegen die
+in 10-W-Stufen gelieferte Gesamtleistung. Er ist an **40,9 %** der Messpunkte
+des 12.08. der beste Strang, laesst sich also nicht ausschliessen. Der
+Aufschlag ist aber klein — gemessen am Sprung zum jeweiligen Vorwert:
+
+| bester Strang | Median | p90 |
+|---|---|---|
+| PV1–PV3 | 24,4 W | 86,0 W |
+| PV4 | 32,0 W | 83,2 W |
+
+Der Median steigt um rund 8 W, das p90 liegt sogar leicht darunter. Die
+Streuung wird also von der natuerlichen Einstrahlungsschwankung dominiert,
+nicht von der Quantisierung. **Spuerbar verrauscht ist die Groesse dadurch
+nicht.** Das Attribut `referenz_ist_differenzwert` weist jeden solchen
+Messpunkt trotzdem aus.
+
+### Tagesenergie
+
+Riemann-Integral (`integration`, Methode `left`, da beide Groessen sprungweise
+aus dem Pollintervall kommen) plus `utility_meter` mit Tageszyklus:
+
+| Entity | Bedeutung |
+|---|---|
+| `sensor.pv_theoretische_energie_tag` | was ohne Verschattung moeglich gewesen waere, kWh |
+| `sensor.pv_verschattungsverlust_tag` | was die Verschattung gekostet hat, kWh |
+
+Das ist die Zahl fuer die Ausbauentscheidung: nicht „18 % irgendwann", sondern
+kWh pro Tag, aufsummiert ueber die Wochen bis Mitte September.
+
 ## Was fehlt
 
 - **Jahresgang.** Zwei Tage im August. Wie sich die Fenster im Oktober
