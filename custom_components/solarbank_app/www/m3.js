@@ -761,6 +761,48 @@ sb-tile {
   .md-view { padding-bottom: 24px; }
 }
 
+
+/* Die Navigation Rail liegt fest am linken Rand. Ohne Versatz schiebt sie
+   sich UEBER den Inhalt - Titel und Bannertext waren abgeschnitten. Der
+   Innenabstand haelt den Platz frei, den sie belegt. */
+@media (min-width: 601px) {
+  .md-app-shell { padding-left: 80px; }
+}
+@media (min-width: 1240px) {
+  .md-app-shell { padding-left: 96px; }
+}
+
+
+/* -----------------------------------------------------------------------
+   WAAGERECHTER UEBERLAUF
+
+   Bei 390 px lief der Inhalt rechts aus dem Bild: Bannertext, Hinweischip
+   und die Navigationsleiste waren abgeschnitten, das vierte Ziel gar nicht
+   mehr zu sehen. Ursachen und Gegenmittel:
+
+   - .md-nav-item hatte min-width 48px UND wachsende Beschriftungen. Vier
+     lange Woerter passen bei 390 px nicht nebeneinander. Jetzt teilen sich
+     die Ziele die Breite gleichmaessig, die Beschriftung kuerzt mit Auslassung.
+   - Karten und Bilder duerfen nie breiter werden als ihr Kasten.
+   ----------------------------------------------------------------------- */
+
+.md-nav-bar .md-nav-item {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 8px 4px;
+  overflow: hidden;
+}
+.md-nav-bar .md-nav-item > * {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.md-app-shell { overflow-x: clip; }
+.md-view > *, .md-card, .md-banner { max-width: 100%; box-sizing: border-box; }
+.md-view img, .md-view svg { max-width: 100%; height: auto; }
+
 .md-app-shell {
   display: flex;
   flex-direction: column;

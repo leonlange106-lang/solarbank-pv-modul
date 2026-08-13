@@ -72,6 +72,53 @@ setInterval(() => { app.hass = erzeugeHass(szenario); }, 5000);
 if (!location.hash) location.hash = '#/start';
 
 window.__benchBereit = true;
+
+// --- Selbstvermessung ---------------------------------------------------
+// Ergebnis landet als JSON in <pre id="bench-report">, damit --dump-dom es
+// mitliefert. So braucht der Prueflauf kein DevTools-Protokoll.
+setTimeout(() => {
+  const wurzel = app.shadowRoot;
+  const bericht = { szenario, ansicht: location.hash };
+
+  // 1) Waagerechter Ueberlauf - der haeufigste Mobilfehler.
+  const de = document.documentElement;
+  bericht.ueberlauf_px = de.scrollWidth - de.clientWidth;
+
+  // 2) Tap-Ziele unter 48 px.
+  const klein = [];
+  if (wurzel) {
+    for (const el of wurzel.querySelectorAll('button, [role=button], input, sb-tile, .md-nav-item')) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && (r.width < 48 || r.height < 48)) {
+        klein.push(`${el.className || el.tagName} ${Math.round(r.width)}x${Math.round(r.height)}`);
+      }
+    }
+  }
+  bericht.tapziele_zu_klein = klein.slice(0, 12);
+
+  // 3) touch-action auf Reglern.
+  const regler = wurzel ? [...wurzel.querySelectorAll('input[type=range]')] : [];
+  bericht.regler = regler.length;
+  bericht.regler_touch_action = [...new Set(regler.map((r) => getComputedStyle(r).touchAction))];
+
+  // 4) Kommt ueberhaupt ein Wert an?
+  const texte = wurzel ? wurzel.textContent : '';
+  bericht.zeigt_werte = /\d+[.,]?\d*\s*(W|kWh|%)/.test(texte);
+  bericht.strich_platzhalter = (texte.match(/–/g) || []).length;
+
+  // 5) Ist die Navigationsleiste vollstaendig sichtbar?
+  const nav = wurzel && wurzel.querySelector('.md-nav-bar');
+  if (nav) {
+    const r = nav.getBoundingClientRect();
+    bericht.nav_rechts = Math.round(r.right);
+    bericht.nav_sichtbar = r.right <= window.innerWidth + 1;
+  }
+
+  const pre = document.createElement('pre');
+  pre.id = 'bench-report';
+  pre.textContent = JSON.stringify(bericht, null, 1);
+  document.body.appendChild(pre);
+}, 2500);
 </script>
 </body>
 </html>

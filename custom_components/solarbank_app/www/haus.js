@@ -383,6 +383,12 @@ export function buildHaus(ctx) {
     battFuellung.style.transform = `scaleY(${(soc / 100).toFixed(4)})`;
   };
 
+  // Markierung, damit app.js diesen Knoten im Teilbaum findet.
+
+
+  wrap.dataset.sbUpdate = '1';
+
+
   wrap.update = update;
   update();
   return wrap;

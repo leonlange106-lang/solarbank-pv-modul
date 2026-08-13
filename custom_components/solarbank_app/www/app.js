@@ -385,11 +385,33 @@ class SolarbankApp extends HTMLElement {
     // korrekt, denn ein Neuaufbau bei jedem hass-Takt ist genau das, was
     // vermieden werden soll.
     const node = this._activeViewNode;
-    if (node && typeof node.update === 'function') {
-      try {
-        node.update(this._makeCtx());
-      } catch (err) {
-        console.error('[solarbank-app] Fehler beim Aktualisieren der aktiven Ansicht:', err);
+    if (!node) return;
+    const ctx = this._makeCtx();
+
+    // Wurzel der Ansicht, falls sie selbst eine anbietet (die Hausansicht
+    // tut das).
+    if (typeof node.update === 'function') {
+      try { node.update(ctx); } catch (err) {
+        console.error('[solarbank-app] Fehler beim Aktualisieren der Ansicht:', err);
+      }
+    }
+
+    // UND die Kacheln im Teilbaum. Ohne das blieb die App auf dem Stand
+    // stehen, den sie beim Oeffnen hatte: acht der neun Ansichten bestehen
+    // aus sb-tile-Elementen, und die aktualisieren sich nicht von selbst.
+    // In Home Assistant fiel es nicht auf, weil hass dort schon vor dem
+    // ersten Aufbau da ist - die erste Anzeige war also richtig und danach
+    // eingefroren. Am Pruefstand, wo hass spaeter kommt, blieb alles leer.
+    let kacheln;
+    try {
+      kacheln = node.querySelectorAll ? node.querySelectorAll('sb-tile, [data-sb-update]') : [];
+    } catch (err) {
+      kacheln = [];
+    }
+    for (const k of kacheln) {
+      if (k === node || typeof k.update !== 'function') continue;
+      try { k.update(ctx); } catch (err) {
+        console.error('[solarbank-app] Fehler beim Aktualisieren einer Kachel:', err);
       }
     }
   }
