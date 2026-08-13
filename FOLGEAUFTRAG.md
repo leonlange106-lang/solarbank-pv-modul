@@ -768,7 +768,9 @@ Profil sagt zu wenig Verschattung voraus.** 10173–10175 weiterhin konstant nul
    **erledigt 13.08. 15:30**, siehe 7.10
 2. ~~rechts/links-Durchgang über `REGISTER.md` §7 und das Dashboard~~
    **erledigt 13.08. 15:30**, siehe 7.10 — Dashboard nur im Repo, **nicht deployt**
-3. **3.4** Recorder- und Rechenlast messen — vor allen weiteren Entities
+3. ~~**3.4** Recorder- und Rechenlast messen — vor allen weiteren Entities~~
+   **erledigt 13.08. 15:30**, siehe 7.11 — Ergebnis: CPU unkritisch, Freigabe
+   für Schritt 4 aus Lastsicht erteilt
 4. dann 8 + 9 aus 7.6 einbauen, deployen, **ein** Neustart, SHA256-Gegenprüfung
 5. 7.3 (Plausibilitätsklammer) und 7.2 (lastabhängiger Wirkungsgrad) vorlegen
 
@@ -837,6 +839,127 @@ Interpolationsnachbarn im Array, kein Ortsbezug.
 Lovelace-Ansicht zeigt weiter „ganz rechts" / „ganz links", bis das Deployment
 freigegeben ist. `docs/dashboard-pv-module.json` parst nach der Änderung
 fehlerfrei (`json.load`).
+
+### 7.11 Ergebnis von 3.4 — Recorder- und Rechenlast, gemessen 13.08. 15:30
+
+Ohne eine einzige neue Entity gemessen: CPU liefert die Proxmox-Integration,
+die Datenbankgröße `sensor.diagnose_recorder_datenbankgroesse`, die Zeilenzahlen
+die Recorder-Historie selbst.
+
+**CPU: unkritisch, aber die Reihe hat einen Bruch.**
+
+| Tag | Tagesmittel |
+|---|---|
+| 28.07.–09.08. | rund 31 % |
+| 10.08. | 25,5 % |
+| 11.08. | 8,8 % |
+| 12.08. | 9,3 % |
+| 13.08. | 9,6 % |
+
+Der Abfall um 22 Punkte fällt mit der Inbetriebnahme von `solarbank_pv`
+zusammen — falsche Richtung, also kein Kausalzusammenhang. **Zwei Lesarten,
+beide dokumentiert:** entweder wurde am 10.08. etwas entfernt, das dauerhaft
+Last zog, oder die Bezugsgröße hat sich geändert — `sensor.haos_18_1_maximale_cpu_leistung`
+(4 Kerne) hat **selbst erst ab 10.08.** Statistik, die Sensorfamilie wurde an
+dem Tag neu angelegt. Ging die VM dabei von 1 auf 4 Kerne, erklärt 31 / 4 ≈ 7,8
+den Sprung fast vollständig.
+
+Vergleichbar ist deshalb nur das Fenster ab 11.08. — und das ist genau das
+Fenster, in dem die rund 95 Entities dazukamen: **8,8 → 9,6 %**, also **unter
+einem Prozentpunkt auf vier Kernen.** Die CPU trägt das mühelos.
+
+**Recorder: das ist die eigentliche Kostenstelle.** Datenbank 1128 MiB, und sie
+wächst weiter — stündlich gemessen, nicht geschätzt:
+
+| Zeitraum | Zuwachs |
+|---|---|
+| Tagsüber | 8–14 MiB/h |
+| Nachts | 8–9 MiB/h |
+| 24 h (12.08. 11:00 → 13.08. 11:00) | **+174 MiB** |
+
+> Der Helfer `sensor.diagnose_recorder_wachstum` meldet **76 MB/d** und liegt
+> damit um mehr als den Faktor zwei zu niedrig. Seine Glättung frisst den
+> Trend. Wer die Zahl zur Entscheidung heranzieht, entscheidet auf falscher
+> Grundlage — der stündliche Verlauf der Größe selbst ist belastbar.
+
+**Der Purge läuft.** Zwischen 05:00 und 10:00 stand die Größe exakt still, davor
+und danach wuchs sie mit 8 MiB/h. Das ist die Signatur des nächtlichen Purge um
+04:12: freigegebene Seiten werden fünf Stunden lang wiederbefüllt, bevor die
+Datei erneut wächst. Gegen die Alternativlesart „Sensor hing" spricht, dass er
+um 10:00 **nicht** nachgesprungen ist. `purge_keep_days` ist nicht gesetzt,
+also 10 Tage. Das Plateau stellt sich ein, sobald das 10-Tage-Fenster
+vollständig aus Tagen mit der neuen Schreibrate besteht — grob ab dem 21.08.,
+bei rund 1,7 GB. Platte: 63,3 GB gesamt, 25,9 GB belegt. Kein Engpass.
+
+**Zeilen je Stunde, mittags gemessen** (`significant_changes_only=False`):
+
+| Gruppe | Entities | Zeilen/h |
+|---|---|---|
+| PV-Stapel (`solarbank_pv`, `pv_lernprognose`, Verschattung) | 54 | **3742** |
+| offizielle Integration + Stromleser-Dashboard | 10 | **3217** |
+
+Die drei größten Einzelverursacher sind **keine** Register:
+
+| Entity | Zeilen/h | /Tag |
+|---|---|---|
+| `sensor.saunaraum_…_pv_signal_streuung_5min` | 702 | 16 848 |
+| `sensor.…_441_startseite_last` | 617 | 14 808 |
+| `sensor.…_441_batterieladeleistung` | 513 | 12 312 |
+| `sensor.saunaraum_…_pv_mittel_20min` | 269 | 6 456 |
+
+Die Modbus-Register liegen bei **120 Zeilen/h** — exakt der 30-s-Takt, jede
+Abfrage ein neuer Wert. Sie sind einzeln billig; teuer sind die
+Statistik-Helfer, die auf dem 5-s-Polling der offiziellen Integration sitzen.
+
+**Was die Messung nicht belegt:** die Umrechnung von Zeilen in Bytes. 6959
+gemessene Zeilen/h stehen 14 MiB/h Wachstum gegenüber — das wären 2 KiB je
+Zeile, unplausibel viel für eine `states`-Zeile. Es schreiben also noch weitere
+Entities kräftig mit, oder einzelne führen große Attribute. **Der Byteanteil des
+PV-Stapels ist damit offen; die Zeilenzahlen sind es nicht.**
+
+**Nicht gemacht, weil `exclude` den Regelbetrieb berührt:** Der naheliegende
+Hebel wäre `sensor.saunaraum_…_pv_signal_streuung_5min` — 16 848 Zeilen/Tag für
+eine 5-Minuten-Streuung. Ob der Verlauf gebraucht wird, entscheidet der
+Betreiber. Ergänzung der `exclude`-Liste wäre die Umsetzung, **nie**
+Überschreiben.
+
+**Freigabe für Schritt 4 aus 7.8:** Aus Sicht der Last spricht nichts gegen die
+beiden neuen Entities (10001 `battery_status`, 10064 `operating_mode`). Sie
+kosten keine zusätzliche Modbus-Anfrage und ändern sich selten — `battery_status`
+kennt vier Zustände, `operating_mode` steht seit Tagen auf 0. Erwartete
+Zusatzlast: unter 50 Zeilen/Tag.
+
+### 7.12 Neuer Befund: Langzeitstatistik von 10156 steht seit 08:55 still
+
+Aktiver Reparaturhinweis in HA, entstanden **13.08. 08:55**:
+`units_changed_sensor.pv_unbekannt_stufenwert_1`. Der Zustand trägt jetzt `°C`,
+die Statistik-Metadaten stehen weiter auf `unitless`.
+
+| | |
+|---|---|
+| Zustand jetzt | 36,0 °C, zuletzt 15:28 — der Sensor selbst läuft normal |
+| Statistikzeilen in 48 h | **eine einzige** |
+| deren Werte | Mittel 319,8, Min 310, Max 320 — **Rohwerte**, aus der Zeit vor der ÷10-Skalierung |
+| `is_fixable` | false — kein Ein-Klick-Fix in Reparaturen |
+
+Ursache ist die Umdeutung des Registers selbst: aus einem einheitenlosen
+Stufenwert wurde eine Temperatur mit Einheit und `device_class`. Der
+Kurzzeitverlauf ist unberührt, die **Langzeitstatistik** nimmt seit 08:55 nichts
+mehr an.
+
+**Nicht angefasst.** Die Bereinigung löscht oder überschreibt aufgezeichnete
+Statistik, und die Entity trägt den Präfix `pv_`. Zwei Wege, beide für die
+Vorlage:
+
+1. **Statistik-Metadaten löschen** (Entwicklerwerkzeuge → Statistiken). Die
+   alten Rohwert-Zeilen verschwinden, die Aufzeichnung startet in °C neu. Die
+   verlorenen Daten sind ohnehin unbrauchbar — 320 statt 32 °C.
+2. **Einheit entfernen** und die Temperatur einheitenlos führen. Erhält die
+   alte Reihe, macht den Verlauf aber unlesbar. Widerspricht der Begründung in
+   `const.py`.
+
+Empfehlung: Weg 1. Die zu erhaltende Reihe besteht aus falsch skalierten
+Werten eines damals falsch gedeuteten Registers.
 
 ---
 
