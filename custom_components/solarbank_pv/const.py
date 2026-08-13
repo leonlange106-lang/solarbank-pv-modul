@@ -117,6 +117,43 @@ KLARHIMMEL_BLIND_ANTEIL: Final = 0.50
 SHADE_ON: Final = 0.60
 SHADE_OFF: Final = 0.70
 
+# Schwachlichtsperre der Referenzrechnung, mit Hysterese auf der SUMME aller
+# vier Straenge.
+#
+# Warum die Summe und nicht der beste Strang: Am Abend des 13.08. lieferte die
+# Anlage insgesamt rund 10 W (1,0 / 1,3 / 4,8 / 3,0 W), waehrend der
+# Verschattungsverlust bis zu 86,9 W meldete. Ursache war die alte Sperre, die
+# nur auf dem BESTEN Strang sass: sobald ein einzelner Strang die 15 W kurz
+# ueberschritt, rechnete die Referenz 4 x diesen Wert hoch und stellte das
+# Ergebnis einer Gesamterzeugung von 10 W gegenueber. Ein Verlust groesser als
+# die Erzeugung ist physikalisch unmoeglich - der Tageszaehler hat es trotzdem
+# mitintegriert.
+#
+# Warum Hysterese: Ohne sie flackerte die Sperre im 30-s-Takt, weil die
+# Strangleistungen genau auf der Schwelle pendelten. Jeder zweite Zyklus
+# lieferte einen Fantasiewert. Gemessen am 13.08. zwischen 20:11 und 20:39.
+SCHWACHLICHT_SPERRE_W: Final = 30.0   # darunter sperren
+SCHWACHLICHT_FREI_W: Final = 60.0     # erst darueber wieder freigeben
+
+# Plausibilitaetsklammer fuer die Batterieleistung 10008/10009 (FOLGEAUFTRAG 7.3).
+#
+# An 8 von 1461 Messpunkten des 12.08. passen High- und Lowword nicht zusammen;
+# als INT32 gelesen ergibt das Ausschlaege um +-65 kW. Die Rohwerte waren
+# "0 65526" und "65535 0" - beides Nulldurchgaenge, bei denen die beiden Worte
+# aus verschiedenen Momenten stammen.
+#
+# ABWEICHUNG VON DER VORGABE, bewusst und hier vermerkt: Die Vorgabe lautete,
+# gegen max_charge_power (Register 10036) zu klammern. Das geht nicht direkt -
+# 10036 liegt in der Lesegruppe "limits", 10008 in "mirror", und jede Gruppe
+# hat ihren eigenen Coordinator. Ein gruppenuebergreifender Zugriff haenge an
+# der Frische der anderen Gruppe und faellt bei deren Ausfall mit aus.
+#
+# Stattdessen eine feste Schranke mit Luft: 10036 liest 3000 W (Laden),
+# 10038 liest 800 W (Entladen). 6000 W liegt um Faktor 2 ueber dem realen
+# Maximum und um Faktor 11 unter dem Defektwert - die Trennung ist eindeutig,
+# ohne dass ein echter Extremwert je anschlaegt.
+BATTERIE_PLAUSIBEL_W: Final = 6000.0
+
 # Abregelung: ein MPP-Tracker faehrt normal bei 0.832 * Voc. Verschiebt sich der
 # Arbeitspunkt ueber diesen Anteil Richtung Leerlauf, regelt der Wechselrichter ab.
 CURTAIL_VOC_FRACTION: Final = 0.92
@@ -262,6 +299,10 @@ class Reg:
     # zusaetzliche Recorder-Zeile. Eine Uebersetzung des Zustands selbst waere
     # eine Aenderung am Lesepfad und ist bewusst unterblieben.
     bedeutung: str | None = None
+    # Plausibilitaetsschranke in der Einheit des Registers. Ist sie gesetzt,
+    # verwirft der Sensor Betraege darueber und haelt den letzten guten Wert
+    # (FOLGEAUFTRAG 7.3). Nur fuer Register, deren Defektbild belegt ist.
+    plausibel_bis: float | None = None
     words: int = field(init=False)
 
     def __post_init__(self) -> None:
@@ -372,8 +413,12 @@ REGISTERS: Final[tuple[Reg, ...]] = (
         "mirror", True, icon="mdi:solar-power", **_W),
     Reg("third_party_pv_mb", 10004, "i32", 1.0, "PV-Leistung Fremdanlage (Modbus)",
         "mirror", True, icon="mdi:solar-power-variant", **_W),
+    # Einziges Register mit Plausibilitaetsklammer: sein Defektbild ist belegt
+    # (8 von 1461 Punkten, +-65 kW am Nulldurchgang). Alle anderen bekommen
+    # KEINE Klammer - ein Filter ohne belegten Defekt versteckt nur Befunde.
     Reg("battery_power_mb", 10008, "i32", 1.0, "Batterieleistung (Modbus)",
-        "mirror", True, icon="mdi:battery-charging", **_W),
+        "mirror", True, icon="mdi:battery-charging",
+        plausibel_bis=BATTERIE_PLAUSIBEL_W, **_W),
     Reg("load_power_mb", 10010, "i32", 1.0, "Hauslast (Modbus)",
         "mirror", True, icon="mdi:home-lightning-bolt", **_W),
     Reg("grid_power_mb", 10012, "i32", 1.0, "Netzleistung (Modbus)",

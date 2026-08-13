@@ -42,6 +42,8 @@ from .const import (
     REFERENZ_NAHE_ANTEIL,
     REGISTERS,
     REGISTERS_BY_KEY,
+    SCHWACHLICHT_FREI_W,
+    SCHWACHLICHT_SPERRE_W,
     SHADE_ON,
     STRINGS,
     Reg,
@@ -187,13 +189,27 @@ class RegisterSensor(SolarbankEntity, SensorEntity):
         self._attr_state_class = reg.state_class
         self._attr_icon = reg.icon
         self._attr_entity_registry_enabled_default = reg.default_enabled
+        # Plausibilitaetsklammer (7.3): letzter guter Wert und Verwurfszaehler.
+        self._letzter_guter: float | None = None
+        self._verworfen: int = 0
 
     @property
     def native_value(self) -> float | None:
         if not self.coordinator.data:
             return None
         value = read_value(self.coordinator.data, self._reg)
-        return None if value is None else round(value, 3)
+        if value is None:
+            return None
+        # PLAUSIBILITAETSKLAMMER, nur fuer Register mit belegtem Defektbild.
+        # Verworfen wird der Ausschlag, nicht der Messpunkt: der letzte gute
+        # Wert wird gehalten, damit keine Luecke entsteht, die eine
+        # Riemann-Summe anders behandelt als eine Stufe.
+        grenze = self._reg.plausibel_bis
+        if grenze is not None and abs(value) > grenze:
+            self._verworfen += 1
+            return self._letzter_guter
+        self._letzter_guter = round(value, 3)
+        return self._letzter_guter
 
     @property
     def extra_state_attributes(self) -> dict[str, object]:
@@ -210,6 +226,11 @@ class RegisterSensor(SolarbankEntity, SensorEntity):
         # zusaetzliche Recorder-Zeile.
         if self._reg.bedeutung is not None:
             attrs["bedeutung"] = self._reg.bedeutung
+        # Die Klammer muss sichtbar sein. Ein Filter, der still arbeitet,
+        # versteckt irgendwann einen echten Defekt statt ihn zu melden.
+        if self._reg.plausibel_bis is not None:
+            attrs["plausibel_bis_w"] = self._reg.plausibel_bis
+            attrs["verworfene_werte"] = self._verworfen
         return attrs
 
 
@@ -512,6 +533,15 @@ class UnshadedReferenceEntity(StringDerivedEntity):
         self._bester_index: int | None = None
         self._traeger: int | None = None
         self._anteil_klar: float | None = None
+        # Zustand der Schwachlichtsperre (Hysterese). Startet gesperrt: nach
+        # einem Neustart mitten in der Daemmerung ist Sperren die sichere
+        # Annahme, Freigeben nicht.
+        self._sperre: bool = True
+        # Wieviele Zyklen die Sperre verworfen hat, seit dem letzten Neustart.
+        # Sichtbar als Attribut, aus demselben Grund wie bei der
+        # +-65-kW-Klammer: ein Filter, der still arbeitet, versteckt
+        # irgendwann einen echten Defekt.
+        self._verworfen: int = 0
 
     def _outdoor_temp(self) -> float | None:
         state = self.hass.states.get(self._outdoor_entity)
@@ -578,11 +608,34 @@ class UnshadedReferenceEntity(StringDerivedEntity):
 
         sauber = [w for w in werte if w is not None]
         bester = max(sauber)
-        # Nachts und bei sehr schwacher Einstrahlung ist die Aussage sinnlos.
-        # Dieselbe Untergrenze wie beim Leistungsanteil, hier auf den besten
-        # Strang angewandt.
+
+        # SCHWACHLICHTSPERRE mit Hysterese, auf der SUMME aller vier Straenge.
+        #
+        # Die Sperre sass frueher allein auf dem besten Strang. Das reichte
+        # nicht: ueberschritt abends ein einzelner Strang die 15 W, wurde die
+        # Referenz mit 4 x diesem Wert hochgerechnet und einer Gesamterzeugung
+        # von 10 W gegenuebergestellt - am 13.08. bis zu 86,9 W ausgewiesener
+        # Verlust bei 10 W Erzeugung. Die Summe kann das nicht, weil sie genau
+        # die Groesse ist, gegen die der Verlust plausibel sein muss.
+        gesamt = sum(sauber)
+        if self._sperre:
+            if gesamt < SCHWACHLICHT_FREI_W:
+                self._grund = "Einstrahlung zu schwach"
+                self._verworfen += 1
+                return None
+            self._sperre = False
+        elif gesamt < SCHWACHLICHT_SPERRE_W:
+            self._sperre = True
+            self._grund = "Einstrahlung zu schwach"
+            self._verworfen += 1
+            return None
+
+        # Zusaetzlich der alte Test auf dem besten Strang. Er kann nach der
+        # Summensperre kaum noch greifen, bleibt aber stehen: er kostet nichts
+        # und faengt den Fall ab, dass drei Straenge tragen und einer ausfaellt.
         if bester < MIN_POWER_FOR_RATIO:
             self._grund = "Einstrahlung zu schwach"
+            self._verworfen += 1
             return None
 
         referenz, traeger = unshaded_reference(sauber)
@@ -652,6 +705,12 @@ class UnshadedReferenceEntity(StringDerivedEntity):
                 None if self._anteil_klar is None else round(self._anteil_klar, 3)
             ),
             "mindestleistung_w": MIN_POWER_FOR_RATIO,
+            # Schwachlichtsperre: Schwellen und Zustand offen ausweisen, damit
+            # eine Luecke im Verlauf zuordenbar bleibt.
+            "sperre_unter_w": SCHWACHLICHT_SPERRE_W,
+            "freigabe_ueber_w": SCHWACHLICHT_FREI_W,
+            "sperre_aktiv": self._sperre,
+            "verworfene_zyklen": self._verworfen,
             "gilt_nicht_bei": "Abregelung; gleichmaessige Verschmutzung",
             "bewoelkung": "kein Verlust - die Referenz faellt mit",
             "blindfleck": (
@@ -708,11 +767,17 @@ class ShadingLossSensor(UnshadedReferenceEntity):
             self._roh = None
             return None
         self._roh = theoretisch - ist
-        # Ein negativer Verlust ist physikalisch unmoeglich. Kleine negative
-        # Werte entstehen, weil die Gesamtleistung aus 10002 in 10-W-Stufen
-        # kommt, die Strangleistungen aber aus feinem U x I. Auf null geklemmt,
-        # der Rohwert bleibt im Attribut sichtbar.
-        return round(max(self._roh, 0.0), 1)
+        # ZWEI KLAMMERN, beide physikalisch begruendet:
+        #
+        # unten: Ein negativer Verlust ist unmoeglich. Kleine negative Werte
+        #   entstehen, weil die Gesamtleistung aus 10002 in 10-W-Stufen kommt,
+        #   die Strangleistungen aber aus feinem U x I.
+        # oben:  Der Verlust kann die theoretische Leistung nicht uebersteigen.
+        #   Das trifft den Fall, in dem 10002 negativ oder unplausibel klein
+        #   gemeldet wird und die Differenz dadurch aufblaeht.
+        #
+        # Der Rohwert bleibt in beiden Faellen im Attribut sichtbar.
+        return round(min(max(self._roh, 0.0), theoretisch), 1)
 
     @property
     def extra_state_attributes(self) -> dict[str, object]:

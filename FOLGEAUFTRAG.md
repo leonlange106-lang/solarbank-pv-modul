@@ -1352,6 +1352,106 @@ liefert.
 
 ---
 
+### 7.23 DATENSCHNITT — alles vor dem 14.08.2026, 00:00 ist nicht verwertbar
+
+**Das ist die wichtigste Aussage dieser Übergabe. Wer sie übersieht, rechnet
+mit Zahlen aus vier verschiedenen Modellständen.**
+
+| Zeitraum | Status |
+|---|---|
+| bis 13.08.2026, 23:59 | **nicht verwertbar** |
+| ab 14.08.2026, 00:00 | gültige Basis |
+
+**Warum der Schnitt nötig ist.** Am 13.08. wurde in fünf Runden gearbeitet:
+Register umgedeutet, `certain`-Flags geändert, zwei Entities ergänzt, die
+Recorder-`exclude` erweitert, die Statistik von 10156 gelöscht und zuletzt
+Messpfad **und** Prognosemodell geändert. Kein Wert des 13.08. stammt aus
+demselben Stand wie der nächste.
+
+Konkret unbrauchbar für Vergleiche:
+
+- **`sensor.pv_verschattungsverlust_tag` = 0,992 kWh.** Teiltag ab 14:00, ohne
+  Vormittagsdelle, **und** mit dem in 7.22 belegten Abendfehler behaftet.
+- **`sensor.pv_theoretische_energie_tag` = 5,901 kWh.** Dieselbe Quelle,
+  derselbe Fehler.
+- **Alle Prognosezeitpunkte des 13.08.** — sie stammen aus dem alten Modell mit
+  konstantem Wirkungsgrad 0,95 und ohne Interpolation.
+
+**Weiterhin gültig, weil Messung und nicht Modell:** der 100-%-Zeitpunkt
+17:20:27 (7.22), die Verschattungsverspätung von PV4 (3.7), die
+10254-Regression (7.1) und der Registerabgleich (7.6). Diese Zahlen sind aus
+Rohdaten gewonnen und von den Modelländerungen unberührt.
+
+### 7.24 Umgesetzt in der Nacht auf den 14.08. — ein Neustart
+
+Freigabe des Betreibers: „alles inkl prognosemodell, dabei aber bitte sauber
+(ha und repo) vermerken das der 13.08. nicht verwertbar ist sondern erst ab dem
+14.08. 00:00".
+
+**1. Schwachlichtsperre der Referenzrechnung (7.22).** Die Sperre saß auf dem
+**besten Strang**; jetzt sitzt sie mit Hysterese auf der **Summe**.
+
+| | vorher | jetzt |
+|---|---|---|
+| Bezugsgröße | bester Strang | Summe aller vier |
+| Schwelle | 15 W | **sperren unter 30 W, freigeben erst über 60 W** |
+| Verhalten am 13.08. abends | jeder zweite Zyklus ein Fantasiewert bis 86,9 W | gesperrt ab 28 W, keine Freigabe mehr |
+
+Simuliert am gemessenen Abendverlauf (420 → 10 W): rechnet bis 40 W, sperrt
+dann und flackert nicht mehr. Zusätzlich eine **obere Klammer** — der Verlust
+kann die theoretische Leistung nicht übersteigen. Neue Attribute
+`sperre_unter_w`, `freigabe_ueber_w`, `sperre_aktiv`, `verworfene_zyklen`.
+
+**2. Plausibilitätsklammer für 10008/10009 (7.3).** Neues `Reg`-Feld
+`plausibel_bis`; gesetzt **nur** für `battery_power_mb`, weil nur dort ein
+Defektbild belegt ist. Beträge über **6000 W** werden verworfen, der letzte
+gute Wert gehalten, `verworfene_werte` als Attribut ausgewiesen.
+
+> **Abweichung von der Vorgabe, bewusst.** Vorgegeben war die Klammer gegen
+> `max_charge_power` (10036). Das geht nicht direkt: 10036 liegt in der
+> Lesegruppe `limits`, 10008 in `mirror`, jede Gruppe hat einen eigenen
+> Coordinator. Ein gruppenübergreifender Zugriff hinge an der Frische der
+> anderen Gruppe und fiele bei deren Ausfall mit aus. Stattdessen eine feste
+> Schranke: 3000 W Laden, 800 W Entladen, also ist 6000 W Faktor 2 über dem
+> realen Maximum und Faktor 11 unter dem Defektwert.
+
+Gegengeprüft an den echten Rohwerten des 12.08.: `0 65526` → +65 526 W und
+`65535 0` → −65 536 W werden verworfen; 3000, −3000, 800, −800 und 5999 W
+passieren.
+
+**3. Lastabhängiger Ladewirkungsgrad (7.2).** `umgebung.eta` im Ladezweig
+ersetzt durch `eta(P) = 0,9572 − 54,3/P` aus der Regression:
+
+| Ladeleistung | η neu | η alt |
+|---|---|---|
+| 200 W | **0,686** | 0,95 |
+| 380 W | **0,814** | 0,95 |
+| 1000 W | **0,903** | 0,95 |
+| 2000 W | **0,930** | 0,95 |
+
+Nach oben gegen den **gelernten** Wirkungsgrad gedeckelt, damit die Korrektur
+die Prognose nur nach unten verschieben kann. Der Entladezweig bleibt beim
+gelernten Wert — die Regression gilt dort nicht (r = −0,148).
+
+**4. Lineare Interpolation im Treffer-Schritt.** `t_voll`, `t_ziel` und
+`t_leer` werden nicht mehr auf das Schrittende gerundet, sondern zwischen
+Schrittanfang und -ende interpoliert. Damit ist Konvergenz unterhalb von 15
+Minuten überhaupt erst messbar — der Punkt aus 7.20. Kostet eine Division.
+
+**Nicht umgesetzt, mit Begründung:**
+
+| Punkt | Warum nicht |
+|---|---|
+| **7.9** `E_FS` in den Pegel | Verschiebt, **was der Lerner lernt**: `truebung_prognose` entsteht im Coordinator aus dem Pegel, und der Pegel ist eine gelernte Größe. Das ist kein Zwei-Zeilen-Eingriff, sondern eine Umstellung des Lernpfads. Nachts vor dem Start der sauberen Basis eingebaut, wäre der Fehler erst nach Tagen sichtbar. |
+| **3.3 / 3.9** | `binary_sensor.pv_abregelung_erkannt` **existiert bereits** (`binary_sensor.py:279`). Offen ist nur der Konsumentenwechsel: `pv_lernprognose` liest weiter `QUELLE_DROSSELUNG_W` → `sensor.pv_drosselung_leistung`. Der Wechsel ändert die Zensurerkennung des Lerners und gehört deshalb in dieselbe Runde wie 7.9, nicht davor. |
+| **7.15** Wachstumssensor | Neue `diagnose_`-Entity, unabhängig von allem anderen. Keine Eile, kein Einfluss auf die Basis. |
+
+**Folge für die Sequenz:** 7.9 und 3.3/3.9 ändern beide das Lernverhalten. Sie
+gehören an die **nächste** Mitternachtsgrenze, nicht mitten in den ersten
+sauberen Tag. Sonst ist der 14.08. der kontaminierte Tag statt des 13.08.
+
+---
+
 ## TEIL 8 — Arbeitsregeln für die Sitzung
 
 Vom Betreiber am 13.08. gesetzt. Faustregel dahinter: **Was reversibel und

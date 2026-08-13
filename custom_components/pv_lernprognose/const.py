@@ -377,6 +377,30 @@ START_PEGEL: Final = 1.42
 # Startwert des Speicherwirkungsgrads. Bisheriger fester Wert des Sensors.
 START_ETA: Final = 0.95
 
+# --- Lastabhaengiger Ladewirkungsgrad (FOLGEAUFTRAG 7.2) -------------------
+#
+# Ein KONSTANTER Wirkungsgrad ist widerlegt. tools/korrelation_10254.py haelt
+# 10254 (Ladeleistung nach Wandlung) gegen 10008 (davor), 882 Messpunkte des
+# 12.08. im selben Abfragezyklus:
+#
+#     10254 = -0.9572 * 10008 - 54.3 W     r = -0.982
+#
+# Das ist kein prozentualer Verlust, sondern ein FESTER SOCKEL von 54 W plus
+# 4,3 % proportional - die Signatur eines Wandlungspfads mit Eigenverbrauch.
+# Daraus folgt eta(P) = 0.9572 - 54.3 / P:
+#
+#     200 W -> 0.686      1000 W -> 0.903
+#     380 W -> 0.814      2000 W -> 0.930
+#
+# Der bisherige Festwert 0.95 wird also erst oberhalb von rund 3,7 kW erreicht
+# und liegt bei den real auftretenden Ladeleistungen deutlich zu hoch. Genau
+# das erklaert einen Teil des Prognose-Optimismus.
+#
+# NUR FUERS LADEN. Im Entladeregime bricht der Zusammenhang zusammen
+# (r = -0.148, n = 364) - dort bleibt es beim gelernten Wirkungsgrad.
+ETA_STEIGUNG: Final = 0.9572     # proportionaler Anteil
+ETA_SOCKEL_W: Final = 54.3       # fester Eigenverbrauch des Wandlungspfads
+
 # Startwert des Systemgains in W je W/m2 Modulebene. Gemessen an den vier
 # Tagen vom 09.-12.08.2026: 2.065.
 #

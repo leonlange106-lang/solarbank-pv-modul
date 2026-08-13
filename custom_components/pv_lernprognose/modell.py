@@ -34,6 +34,8 @@ import datetime as dt
 from dataclasses import dataclass, field
 
 from .const import (
+    ETA_SOCKEL_W,
+    ETA_STEIGUNG,
     SCHRITT_MIN,
     TRUEBUNG_MAX,
     TRUEBUNG_MIN,
@@ -150,6 +152,51 @@ def _truebung(umgebung: Umgebung, jetzt: dt.datetime, t: dt.datetime) -> float:
     return min(max(wert, TRUEBUNG_MIN), TRUEBUNG_MAX)
 
 
+def _eta_laden(p_w: float, eta_gelernt: float) -> float:
+    """Ladewirkungsgrad bei der Leistung p_w, aus der Regression in 7.2.
+
+        eta(P) = ETA_STEIGUNG - ETA_SOCKEL_W / P
+
+    Der feste Sockel von 54 W ist der Eigenverbrauch des Wandlungspfads. Er
+    faellt bei kleiner Ladeleistung stark ins Gewicht (0,69 bei 200 W) und
+    verschwindet bei grosser (0,93 bei 2 kW).
+
+    Nach oben gegen den GELERNTEN Wirkungsgrad gedeckelt: die Regression darf
+    den gemessenen Umlaufwirkungsgrad nicht ueberbieten. Damit kann diese
+    Korrektur die Prognose nur nach unten verschieben, nie nach oben - und die
+    bisherige Ueberschaetzung nicht in eine Unterschaetzung umschlagen.
+    """
+    if p_w <= 0.0:
+        return 0.0
+    eta = ETA_STEIGUNG - ETA_SOCKEL_W / p_w
+    return min(max(eta, 0.0), eta_gelernt)
+
+
+def _treffer_zeit(
+    anfang: dt.datetime,
+    ende: dt.datetime,
+    kwh_vor: float,
+    kwh_nach: float,
+    schwelle: float,
+) -> dt.datetime:
+    """Wann innerhalb des Schritts die Schwelle ueberschritten wurde.
+
+    Linear zwischen Schrittanfang und -ende. Ohne diese Interpolation meldet
+    die Prognose nur Vielfache der Schrittweite, und eine Annaeherung unterhalb
+    von 15 Minuten ist grundsaetzlich nicht messbar.
+
+    Faellt der Stand im Schritt nicht (Division durch fast null), gilt das
+    Schrittende - dasselbe Verhalten wie vorher.
+    """
+    spanne = kwh_nach - kwh_vor
+    if abs(spanne) < 1e-12:
+        return ende
+    anteil = (schwelle - kwh_vor) / spanne
+    if not 0.0 < anteil < 1.0:
+        return ende
+    return anfang + (ende - anfang) * anteil
+
+
 def simuliere(
     umgebung: Umgebung,
     jetzt: dt.datetime,
@@ -183,8 +230,10 @@ def simuliere(
     voriger_stand_hoehe = None
 
     for i in range(schritte):
+        anfang = jetzt + dt.timedelta(minutes=i * SCHRITT_MIN)
         mitte = jetzt + dt.timedelta(minutes=(i + 0.5) * SCHRITT_MIN)
         ende = jetzt + dt.timedelta(minutes=(i + 1) * SCHRITT_MIN)
+        kwh_vor = kwh
         mitte_utc = mitte.astimezone(dt.timezone.utc)
 
         p_klar, poa, _azimut = klarleistung(umgebung, mitte_utc)
@@ -202,8 +251,10 @@ def simuliere(
 
         if netto > 0.0:
             laden = min(netto, umgebung.max_ladeleistung_w)
-            kwh += laden * schritt_h / 1000.0 * umgebung.eta
+            kwh += laden * schritt_h / 1000.0 * _eta_laden(laden, umgebung.eta)
         else:
+            # Entladen bleibt beim gelernten Wirkungsgrad: die Regression aus
+            # 7.2 gilt nur fuers Laden, im Entladeregime bricht sie zusammen.
             entladen = min(-netto, umgebung.ac_grenze_w)
             kwh -= entladen * schritt_h / 1000.0 / umgebung.eta
 
@@ -214,12 +265,19 @@ def simuliere(
         if kwh > lauf.soc_max / 100.0 * kap + 1e-9:
             lauf.soc_max = prozent
             lauf.t_soc_max = ende
+        # Trefferzeitpunkte INNERHALB des Schritts interpolieren statt auf sein
+        # Ende zu runden. Ohne das meldet die Prognose "jetzt + Vielfaches von
+        # 15 Minuten", und eine Konvergenz unterhalb der Stufenbreite ist nicht
+        # messbar - am 13.08. sind daran zwei Auswertungen gescheitert.
+        # Kostet keine zusaetzliche Rechenzeit, nur eine Division.
         if lauf.t_voll is None and kwh >= oben - 1e-6:
-            lauf.t_voll = ende
+            lauf.t_voll = _treffer_zeit(anfang, ende, kwh_vor, kwh, oben)
         if lauf.t_leer is None and kwh <= unten + 1e-6 and p_pv < 20.0:
-            lauf.t_leer = ende
+            lauf.t_leer = _treffer_zeit(anfang, ende, kwh_vor, kwh, unten)
         if ziel_soc is not None and lauf.t_ziel is None and prozent >= ziel_soc:
-            lauf.t_ziel = ende
+            lauf.t_ziel = _treffer_zeit(
+                anfang, ende, kwh_vor, kwh, ziel_soc / 100.0 * kap
+            )
 
         # Sonnenaufgang: erster Schritt mit nennenswerter Klarhimmelleistung
         # nach einer Phase ohne.

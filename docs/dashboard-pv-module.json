@@ -49,6 +49,16 @@
           "column_span": 6,
           "cards": [
             {
+              "type": "markdown",
+              "grid_options": {
+                "columns": "full"
+              },
+              "card_mod": {
+                "style": "ha-card { border: 2px solid rgba(255,167,38,0.75); background: rgba(255,167,38,0.10); }"
+              },
+              "content": "### Datenschnitt: verwertbar erst ab 14.08.2026, 00:00\n\nAm **13.08.2026** wurde in fuenf Runden am Mess- und Prognosepfad gearbeitet - Register umgedeutet, zwei Entities ergaenzt, Recorder-`exclude` erweitert, die Statistik von 10156 geloescht und zuletzt Schwachlichtsperre, Plausibilitaetsklammer, lastabhaengiger Wirkungsgrad und Zeitinterpolation eingebaut.\n\n**Kein Wert des 13.08. stammt aus demselben Stand wie der naechste.** Nicht fuer Vergleiche verwenden:\n\n- `pv_verschattungsverlust_tag` = 0,992 kWh - Teiltag ab 14:00 **und** mit dem Abendfehler behaftet\n- `pv_theoretische_energie_tag` = 5,901 kWh - dieselbe Quelle\n- alle Prognosezeitpunkte des 13.08. - altes Modell, Wirkungsgrad konstant 0,95\n\n**Weiter gueltig, weil Messung statt Modell:** 100 % um 17:20:27 - PV4 kam 15:49 bis 15:55 frei gegen Fahrplan 15:36 - die 10254-Regression.\n\nBelege in `FOLGEAUFTRAG.md`, Abschnitte 7.23 und 7.24."
+            },
+            {
               "type": "custom:mushroom-chips-card",
               "alignment": "center",
               "grid_options": {
