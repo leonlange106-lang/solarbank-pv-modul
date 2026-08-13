@@ -133,6 +133,38 @@ eingeschwungen". Vorher nicht umstellen — die Schätzer brauchen mehrere Tage.
 Bis dahin laufen alt und neu sichtbar nebeneinander; das ist gewollt und der
 beste verfügbare Vergleich.
 
+### 3.1b Offener Messpunkt vom 13.08.: den Tagesform-Fehler beziffern
+
+Am 13.08. wurde der Fehler der ungelernten Tagesform erstmals sauber isoliert,
+weil die Truebungssperre (Abschnitt 20 in `docs/PROGNOSE.md`) die zweite
+Fehlerquelle beseitigt hat. Der Messpunkt fehlt noch.
+
+**Stand am 13.08. um 13:47:**
+
+| | |
+|---|---|
+| SOC | 66 % (gestern zur selben Zeit 69 %) |
+| neue Prognose | voll um **15:28** |
+| alte Prognose | nur ca. 68 %, Hoechststand 14:58 |
+| gestern tatsaechlich | 100 % gegen **16:45** |
+
+Die neue Prognose widerlegt sich rechnerisch selbst: 34 SOC-Punkte in 1:45 h
+sind 1,73 kWh, also **991 W** mittlere Ladeleistung — gemessen wurden 460 W.
+Eine Verdopplung waere noetig, waehrend PV4 laut Profil erst 14:24–15:36 in
+seine Delle faehrt.
+
+**Aufgabe:** Aus der Historie ablesen, wann die 100 % am 13.08. tatsaechlich
+gefallen sind, und die Differenz zu 15:28 als Fehlerbetrag der ungelernten
+Tagesform festhalten. Erwartet wurde 17:00 oder spaeter, also rund
+1,5 Stunden. Das ist die einzige Groesse, die den Nutzen der gelernten
+Tagesform quantifiziert — vor und nach dem Einschwingen vergleichbar.
+
+**Wichtig fuer die Einordnung:** Der Fehler ist nach oben beschraenkt. Weil
+sich die Tagesform aus der Tagessumme herauskuerzt (Beweis in Abschnitt 20),
+kann das Modell Energie nicht erfinden, sondern nur zeitlich falsch verteilen.
+Der Fehler schrumpft deshalb im Lauf des Nachmittags von selbst — je weniger
+Resttag, desto weniger Umverteilungsspielraum.
+
 ### 3.2 Tagesertrag je Modul — nie gebaut
 
 Riemann-Integral plus Utility Meter je Strang. Für Strang 4 auf der
