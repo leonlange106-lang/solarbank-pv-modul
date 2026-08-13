@@ -51,6 +51,8 @@ from .const import (
     MIN_POA_W,
     MIN_PV_W,
     MIN_SONNENHOEHE,
+    QUELLE_ABREGELUNG_BINAER,
+    TRUEBUNG_FS_TAU_MIN,
     QUELLE_DROSSELUNG_W,
     QUELLE_ENTLADEENERGIE_KWH,
     QUELLE_FS_HEUTE_KWH,
@@ -97,6 +99,10 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.anlage = Anlage()
         self.lernstand = Lernstand()
         self._store: Store = Store(hass, STORE_VERSION, STORE_KEY)
+        # Geglaettete Forecast.Solar-Truebung (7.9): Wert und Zeitpunkt.
+        # Bewusst NICHT im Store - reine Laufzeitgroesse, damit die Daempfung
+        # den Lernstand nicht beruehrt.
+        self._fs_geglaettet: tuple[float | None, dt.datetime | None] = (None, None)
         self._puffer: deque[tuple[dt.datetime, float, float]] = deque(
             maxlen=PUFFER_LAENGE
         )
@@ -470,6 +476,19 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if drosselung_w is not None and drosselung_w > 20.0:
             return True
 
+        # 2b) Der Binaersensor aus solarbank_pv, aus dem ARBEITSPUNKT der
+        #     MPP-Tracker (ueber 0.92 * Voc Richtung Leerlauf).
+        #
+        #     Bewusst ZUSAETZLICH statt anstelle von 2): die beiden Wege sind
+        #     unabhaengig und nicht als gleichwertig belegt - 2) rechnet
+        #     Prognose minus Ist, 2b) misst die Kennlinie. Ein Austausch waere
+        #     eine unbelegte Aequivalenzannahme. Als ODER verknuepft kann die
+        #     Zensur nur strenger werden, nie loecheriger, und ein
+        #     Auseinanderlaufen der beiden bleibt als Befund sichtbar.
+        zustand = self.hass.states.get(QUELLE_ABREGELUNG_BINAER)
+        if zustand is not None and zustand.state == "on":
+            return True
+
         # 3) Die Leistung steht still, waehrend die Geometrie sich bewegt.
         #    Das Muster des Drosselungstests vom 08.08.2026.
         n = ZENSUR_FLACH_MIN * 60 // ABTASTUNG_S
@@ -629,7 +648,35 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if summe < 50.0:
             return 1.0, "Resttag zu kurz"
         wert = pegel * fs_rest * 1000.0 / summe
-        return min(max(wert, TRUEBUNG_MIN), TRUEBUNG_MAX), "Forecast.Solar mal Pegel"
+        wert = min(max(wert, TRUEBUNG_MIN), TRUEBUNG_MAX)
+        return self._daempfe_fs(jetzt_utc, wert), "Forecast.Solar mal Pegel"
+
+    def _daempfe_fs(self, jetzt_utc: dt.datetime, wert: float) -> float:
+        """Exponentieller Tiefpass gegen die stuendliche Forecast.Solar-Stufe.
+
+        Forecast.Solar aktualisiert stuendlich; ohne Daempfung schlaegt jede
+        Aktualisierung in einem einzigen Zyklus voll durch. Am 13.08. sprang
+        die Zielzeit dadurch um 16 Minuten (Update 15:06, Sprung 15:07).
+
+        Bewusst NUR auf dem Ausgabepfad: der Pegel bleibt unberuehrt, damit die
+        Daempfung nichts am Gelernten verschiebt. TAU = 0 schaltet sie ab.
+        """
+        if TRUEBUNG_FS_TAU_MIN <= 0.0:
+            return wert
+        vorher, zeitpunkt = self._fs_geglaettet
+        if vorher is None or zeitpunkt is None:
+            self._fs_geglaettet = (wert, jetzt_utc)
+            return wert
+        minuten = max((jetzt_utc - zeitpunkt).total_seconds() / 60.0, 0.0)
+        # Nach einer langen Pause - Neustart, Nacht - nicht kuenstlich am alten
+        # Wert festhalten. Vier Halbwertszeiten sind Faktor 16, das ist vorbei.
+        if minuten > 4.0 * TRUEBUNG_FS_TAU_MIN:
+            self._fs_geglaettet = (wert, jetzt_utc)
+            return wert
+        gewicht = 0.5 ** (minuten / TRUEBUNG_FS_TAU_MIN)
+        neu = vorher * gewicht + wert * (1.0 - gewicht)
+        self._fs_geglaettet = (neu, jetzt_utc)
+        return neu
 
     def _truebung_morgen(
         self,

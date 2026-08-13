@@ -1438,17 +1438,107 @@ gelernten Wert — die Regression gilt dort nicht (r = −0,148).
 Schrittanfang und -ende interpoliert. Damit ist Konvergenz unterhalb von 15
 Minuten überhaupt erst messbar — der Punkt aus 7.20. Kostet eine Division.
 
-**Nicht umgesetzt, mit Begründung:**
+**5. `E_FS`-Dämpfung (7.9).** Exponentieller Tiefpass mit 20 min Halbwertszeit
+auf der fertigen Trübung, statt E_FS als Momentanmultiplikator durchschlagen zu
+lassen. Nach einer Pause von mehr als vier Halbwertszeiten — Neustart, Nacht —
+startet die Glättung neu, statt an einem alten Wert festzuhalten.
 
-| Punkt | Warum nicht |
+> **Abweichung von der Vorgabe, bewusst.** Vorgeschlagen war, `E_FS` langsam in
+> den **Pegel** einzurechnen. Der Pegel ist eine **gelernte** Größe mit eigenem
+> Tagesrhythmus; ein zweiter Schreiber darauf hätte die Pegelschätzung
+> mitverschoben. Der Tiefpass erreicht dasselbe Ziel — keine Stufe mehr in der
+> Prognose — lässt den Lernpfad unberührt und ist mit `TRUEBUNG_FS_TAU_MIN = 0`
+> folgenlos abschaltbar.
+
+**6. Zweite Zensurquelle (3.3).** `_ist_zensiert` prüft jetzt zusätzlich
+`binary_sensor.pv_abregelung_erkannt`.
+
+> **Bewusst ZUSÄTZLICH statt anstelle.** Die beiden Wege sind unabhängig und
+> **nicht als gleichwertig belegt**: der alte rechnet Prognose minus Ist, der
+> neue misst den Arbeitspunkt der MPP-Tracker gegen 0,92 × Voc. Ein Austausch
+> wäre eine unbelegte Äquivalenzannahme. Als ODER verknüpft kann die Zensur nur
+> strenger werden, nie löcheriger — und ein Auseinanderlaufen der beiden bleibt
+> als Befund sichtbar, statt still einen der Wege zu verlieren.
+
+**Korrektur der Sequenzeinschätzung.** Eine frühere Fassung dieses Abschnitts
+verschob 7.9 und 3.3 auf „die nächste Mitternachtsgrenze", mit der Begründung,
+sie änderten das Lernverhalten. **Das war für 7.9 schlicht falsch** und für 3.3
+das falsche Argument:
+
+| Punkt | tatsächliche Abhängigkeit |
 |---|---|
-| **7.9** `E_FS` in den Pegel | Verschiebt, **was der Lerner lernt**: `truebung_prognose` entsteht im Coordinator aus dem Pegel, und der Pegel ist eine gelernte Größe. Das ist kein Zwei-Zeilen-Eingriff, sondern eine Umstellung des Lernpfads. Nachts vor dem Start der sauberen Basis eingebaut, wäre der Fehler erst nach Tagen sichtbar. |
-| **3.3 / 3.9** | `binary_sensor.pv_abregelung_erkannt` **existiert bereits** (`binary_sensor.py:279`). Offen ist nur der Konsumentenwechsel: `pv_lernprognose` liest weiter `QUELLE_DROSSELUNG_W` → `sensor.pv_drosselung_leistung`. Der Wechsel ändert die Zensurerkennung des Lerners und gehört deshalb in dieselbe Runde wie 7.9, nicht davor. |
-| **7.15** Wachstumssensor | Neue `diagnose_`-Entity, unabhängig von allem anderen. Keine Eile, kein Einfluss auf die Basis. |
+| **7.9** | **keine.** `_truebung_prognose` ist eine reine Leseberechnung: sie liest `pegel` und `fs_rest`, gibt einen Wert zurück und **schreibt nichts**. Gelernt wird der Pegel getrennt in `_pegel_takt`. |
+| **3.3** | **keine technische.** Der Binärsensor existiert und läuft. Dass `zensiert` ins Lernen eingeht, ist genau der Grund, es **vor** dem ersten sauberen Tag zu tun — sonst lernt der 14.08. mit zwei verschiedenen Zensurregeln. |
+| **3.9** | **auch keine auf 3.3.** Kein Code konsumiert die beiden Statistiksensoren; die einzige Fundstelle im Deployment ist der `exclude`-Eintrag vom 13.08. Sie sind bereits Waisen. |
 
-**Folge für die Sequenz:** 7.9 und 3.3/3.9 ändern beide das Lernverhalten. Sie
-gehören an die **nächste** Mitternachtsgrenze, nicht mitten in den ersten
-sauberen Tag. Sonst ist der 14.08. der kontaminierte Tag statt des 13.08.
+Beide Änderungen ändern die Prognosezahlen. Nach demselben
+Vergleichbarkeitsargument, das 7.2 und die Interpolation vor Mitternacht
+gezogen hat, mussten sie **ebenfalls heute** rein — sonst wäre der 14.08. der
+kontaminierte Tag geworden.
+
+### 7.25 Stand bei Sitzungsende, 13.08. 21:10 — was offen ist und warum
+
+Der Betreiber hat die Sitzung ab 21:05 autonom weiterlaufen lassen und steht
+für Rückfragen nicht zur Verfügung. Damit gilt die konservative Lesart von
+TEIL 8: **was in der Vorlegen-Spalte steht, bleibt liegen** — es ist unten
+vollständig spezifiziert, damit die nächste Sitzung es ohne Neuanalyse bauen
+kann.
+
+**Zustand der Anlage nach drei Neustarts (15:44, 20:56, 21:07):**
+
+| Prüfung | Ergebnis 21:08 |
+|---|---|
+| `solarbank_diagnose_gesamtzustand` | `ok` |
+| `input_boolean.nulleinspeisung_aktiv` | `off` |
+| Betriebsmodus (Modbus 10064) | `0` = `self_consumption` |
+| `anker_solix_official` | frisch, 10 W |
+| `pv_verschattungsverlust` | `unknown` — nachts korrekt gesperrt |
+| Fehler aus eigenem Code | **keine** |
+| SHA256 Repo ↔ Deployment | alle sechs Dateien identisch |
+
+**Offen, mit vollständiger Spezifikation:**
+
+**1. `3.9` — die beiden Waisen-Statistiksensoren entfernen.** `grep` über
+`custom_components/`, `packages/` und das Deployment findet **keinen
+Konsumenten**; die einzige Fundstelle ist der `exclude`-Eintrag vom 13.08. und
+ein erläuternder Kommentar in `pv_lernprognose/const.py:123`. Sie sind bereits
+Waisen und hängen **nicht** an 3.3.
+
+> Nicht ausgeführt, weil Löschen die eine Operation ist, die sich nicht
+> zurücknehmen lässt, und der Betreiber nicht erreichbar war. Kosten des
+> Wartens: null — beide stehen im `exclude` und schreiben nichts mehr.
+
+**2. `7.15` — Wachstumssensor der Datenbank.** Der vorhandene
+Derivative-Helfer meldet **76 MB/d** gegen gemessene **174 MiB/24 h**, also
+Faktor 2 zu niedrig. Empfohlener Ersatz, weil ohne Glättungsparameter:
+
+```
+Statistik-Helfer auf sensor.diagnose_recorder_datenbankgroesse
+  Kenngroesse : change
+  Zeitfenster : 24 h
+  Name        : sensor.diagnose_recorder_wachstum_24h
+```
+
+> Nicht gebaut: neue Entity. Der alte Helfer bleibt bis dahin bestehen —
+> **seine Zahl ist aber nicht entscheidungstauglich**, das steht in 7.13.
+
+**3. `3.10` — Forecast.Solar-Geometrie** (Neigung 25° → 20°, Azimut 180° →
+188°). Bisher galt: erst nach 3.1, sonst müsse der Pegelschätzer mitten im
+Einschwingen neu justieren. **Diese Bedingung ist derzeit gegenstandslos**:
+`sensor.pv_lernen_lernstand` steht auf **0 von 4 eingeschwungen**, es gibt also
+nichts zu stören. Je früher die Geometrie stimmt, desto weniger falsch gelernte
+Tage sind zu überschreiben. Der Eingriff liegt in der Forecast.Solar-Integration,
+nicht im eigenen Code.
+
+**4. Kleiner Nebenbefund, nicht angefasst.** `sensor.prioritaetsladung_ziel_erreicht_um`
+wirft jede Nacht `Received invalid sensor state: unknown … expected a valid
+timestamp`, weil `pv_lernen_ziel_erreicht_um` nachts korrekt `unknown` liefert.
+Kein Defekt der Prognose, sondern ein fehlender `availability`-Zweig im
+Template-Sensor. Trägt den Präfix einer Nulleinspeisungs-Entity und wird
+deshalb nicht ohne Freigabe angefasst.
+
+**Nicht mehr offen:** 7.9, 3.3, 7.2, 7.3, 7.22 und die Interpolation sind
+gebaut, deployt und verifiziert.
 
 ---
 

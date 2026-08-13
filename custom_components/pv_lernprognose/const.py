@@ -288,6 +288,11 @@ QUELLE_ENTLADEENERGIE_KWH: Final = (
 )
 QUELLE_DROSSELUNG_W: Final = ("sensor.pv_drosselung_leistung",)
 
+# Zweiter, unabhaengiger Weg zur selben Frage (FOLGEAUFTRAG 3.3). Kommt aus
+# solarbank_pv und misst den ARBEITSPUNKT der MPP-Tracker, nicht die Differenz
+# Prognose minus Ist. Beide zensieren gemeinsam, siehe _ist_zensiert.
+QUELLE_ABREGELUNG_BINAER: Final = "binary_sensor.pv_abregelung_erkannt"
+
 # --- Anlagenkennwerte, aus dem Geraet gelesen -----------------------------
 # Reihenfolge nach Vertrauenswuerdigkeit. Die offizielle Integration zuerst,
 # der eigene Modbus-Sensor als Rueckfall.
@@ -400,6 +405,29 @@ START_ETA: Final = 0.95
 # (r = -0.148, n = 364) - dort bleibt es beim gelernten Wirkungsgrad.
 ETA_STEIGUNG: Final = 0.9572     # proportionaler Anteil
 ETA_SOCKEL_W: Final = 54.3       # fester Eigenverbrauch des Wandlungspfads
+
+# --- Daempfung der Forecast.Solar-Stufe (FOLGEAUFTRAG 7.9) -----------------
+#
+# Forecast.Solar aktualisiert in der kostenlosen Stufe STUENDLICH. E_FS geht in
+# _truebung_prognose als Momentanmultiplikator ein:
+#
+#     Truebung = Pegel * E_FS / Summe(gain * POA * Form)
+#
+# Jede Aktualisierung erzeugt damit einen Stufensprung. Belegt am 13.08.:
+# 15:06 aktualisierte Forecast.Solar, 15:07 sprang die Zielzeit um 16 Minuten.
+#
+# Die Daempfung ist ein exponentieller Tiefpass auf der FERTIGEN Truebung, mit
+# dieser Halbwertszeit. Der Sprung wird ueber rund eine halbe Stunde verteilt,
+# statt in einem Zyklus durchzuschlagen.
+#
+# ABWEICHUNG VON DER VORGABE, bewusst: Vorgeschlagen war, E_FS langsam in den
+# PEGEL einzurechnen und die Restenergie aus dem eigenen POA-Integral zu
+# ziehen. Das waere ein Eingriff in den LERNPFAD - der Pegel ist eine gelernte
+# Groesse mit eigenem Tagesrhythmus, und ein zweiter Schreiber darauf haette
+# die Pegelschaetzung mitverschoben. Der Tiefpass erreicht dasselbe Ziel (keine
+# Stufe mehr in der Prognose), laesst den Lernpfad aber unberuehrt und ist
+# jederzeit folgenlos abschaltbar, indem TAU auf 0 gesetzt wird.
+TRUEBUNG_FS_TAU_MIN: Final = 20.0   # Halbwertszeit der Daempfung, 0 = aus
 
 # Startwert des Systemgains in W je W/m2 Modulebene. Gemessen an den vier
 # Tagen vom 09.-12.08.2026: 2.065.
