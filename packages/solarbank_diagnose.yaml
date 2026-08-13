@@ -1,0 +1,752 @@
+# Gesundheitsueberwachung der selbstgebauten Modbus-Integration solarbank_pv
+#
+# Anlass, 13.08.2026: An einem Tag wurden drei Fehler gefunden, die alle seit
+# Tagen liefen und im Dashboard unauffaellig aussahen.
+#
+#   Nennkapazitaet stand auf 0,0 kWh   Register 10250 als u16 statt u32 gelesen
+#   PV-Fremdanlage stand auf unknown   10004 lag ausserhalb des Leseblocks
+#   Strang 4 fehlte vollstaendig       25 % der Anlage unsichtbar
+#
+# Gemeinsamer Nenner: Die Integration liefert bei Stoerungen still falsche
+# Werte statt Fehler. Ein eingefrorener plausibler Wert ist gefaehrlicher als
+# ein sichtbarer Ausfall - er wird geglaubt.
+#
+# Arbeitsteilung mit der Integration: custom_components/solarbank_pv/diagnose.py
+# meldet FAKTEN je Registergruppe (verworfene Lesebloecke, fehlende Register,
+# Zeitpunkt der letzten erfolgreichen Abfrage). Diese Datei BEWERTET sie. Der
+# Schnitt liegt dort, weil eine Schwelle hier ohne Neustart aenderbar ist.
+#
+# Schwellen und ihre Begruendung stehen in docs/DIAGNOSE.md. Wer hier eine Zahl
+# aendert, aendert sie dort mit.
+#
+# Namensraum: alles neue traegt solarbank_diagnose_*. Die Praefixe
+# nulleinspeisung_*, betriebsart_* und pv_* stehen unter Bestandsschutz.
+
+# ---------------------------------------------------------------------------
+# Latch fuer die Alarmierung
+#
+# Ohne ihn wuerde die Entwarnung auch dann feuern, wenn nie ein Alarm ausging -
+# etwa nach einem Neustart, der kurz durch "stoerung" laeuft.
+# ---------------------------------------------------------------------------
+input_boolean:
+  solarbank_diagnose_alarm_aktiv:
+    name: Solarbank Diagnose Alarm aktiv
+    icon: mdi:bell-alert
+  solarbank_diagnose_hinweis_aktiv:
+    name: Solarbank Diagnose Hinweis aktiv
+    icon: mdi:bell-outline
+
+template:
+  - binary_sensor:
+      # -------------------------------------------------------------------
+      # 1  Verbindung und Integration
+      #
+      # Faengt drei Faelle in einem: die Integration ist gar nicht geladen
+      # (Gesundheitssensoren fehlen), sie ist geladen aber eine Gruppe liest
+      # nicht (Zustand ausfall), oder die Sensoren selbst sind unavailable.
+      # -------------------------------------------------------------------
+      - name: Solarbank Diagnose Integration ausgefallen
+        unique_id: solarbank_diagnose_integration_ausfall
+        device_class: problem
+        icon: mdi:lan-disconnect
+        state: >-
+          {% set gruppen = [
+            'sensor.solarbank_diagnose_gruppe_strings',
+            'sensor.solarbank_diagnose_gruppe_limits',
+            'sensor.solarbank_diagnose_gruppe_grid',
+            'sensor.solarbank_diagnose_gruppe_clock',
+            'sensor.solarbank_diagnose_gruppe_mirror',
+            'sensor.solarbank_diagnose_gruppe_unknown'] %}
+          {% set fehlend = gruppen | reject('has_value') | list | count %}
+          {% set ausgefallen = gruppen | select('is_state', 'ausfall') | list | count %}
+          {{ fehlend > 0 or ausgefallen > 0 }}
+        attributes:
+          betroffene_gruppen: >-
+            {% set gruppen = [
+              'sensor.solarbank_diagnose_gruppe_strings',
+              'sensor.solarbank_diagnose_gruppe_limits',
+              'sensor.solarbank_diagnose_gruppe_grid',
+              'sensor.solarbank_diagnose_gruppe_clock',
+              'sensor.solarbank_diagnose_gruppe_mirror',
+              'sensor.solarbank_diagnose_gruppe_unknown'] %}
+            {{ gruppen | select('is_state', 'ausfall') | map('state_attr', 'gruppe')
+               | list | reject('none') | list }}
+          gruppen_ohne_sensor: >-
+            {% set gruppen = [
+              'sensor.solarbank_diagnose_gruppe_strings',
+              'sensor.solarbank_diagnose_gruppe_limits',
+              'sensor.solarbank_diagnose_gruppe_grid',
+              'sensor.solarbank_diagnose_gruppe_clock',
+              'sensor.solarbank_diagnose_gruppe_mirror',
+              'sensor.solarbank_diagnose_gruppe_unknown'] %}
+            {{ gruppen | reject('has_value') | list }}
+
+      # -------------------------------------------------------------------
+      # 2  Stiller Blockausfall
+      #
+      # Der wichtigste Test ueberhaupt. Ein Leseblock, den das Geraet dreimal
+      # ablehnt, wird nach MAX_BLOCK_FAILURES aus der Abfrage genommen. Die
+      # Gruppe liest danach weiter, nur ohne die Register dieses Blocks. Kein
+      # Fehler, kein unavailable - genau so blieb 10004 tagelang unbemerkt.
+      # -------------------------------------------------------------------
+      - name: Solarbank Diagnose Leseblock verworfen
+        unique_id: solarbank_diagnose_leseblock_verworfen
+        device_class: problem
+        icon: mdi:table-remove
+        state: >-
+          {% set gruppen = [
+            'sensor.solarbank_diagnose_gruppe_strings',
+            'sensor.solarbank_diagnose_gruppe_limits',
+            'sensor.solarbank_diagnose_gruppe_grid',
+            'sensor.solarbank_diagnose_gruppe_clock',
+            'sensor.solarbank_diagnose_gruppe_mirror',
+            'sensor.solarbank_diagnose_gruppe_unknown'] %}
+          {{ gruppen | select('is_state', 'teilausfall') | list | count > 0 }}
+        attributes:
+          fehlende_register: >-
+            {% set gruppen = [
+              'sensor.solarbank_diagnose_gruppe_strings',
+              'sensor.solarbank_diagnose_gruppe_limits',
+              'sensor.solarbank_diagnose_gruppe_grid',
+              'sensor.solarbank_diagnose_gruppe_clock',
+              'sensor.solarbank_diagnose_gruppe_mirror',
+              'sensor.solarbank_diagnose_gruppe_unknown'] %}
+            {% set ns = namespace(l=[]) %}
+            {% for g in gruppen if is_state(g, 'teilausfall') %}
+              {% for r in state_attr(g, 'register_fehlend') or [] %}
+                {% set ns.l = ns.l + [state_attr(g, 'gruppe') ~ ':' ~ r] %}
+              {% endfor %}
+            {% endfor %}
+            {{ ns.l }}
+          verworfene_bloecke: >-
+            {% set gruppen = [
+              'sensor.solarbank_diagnose_gruppe_strings',
+              'sensor.solarbank_diagnose_gruppe_limits',
+              'sensor.solarbank_diagnose_gruppe_grid',
+              'sensor.solarbank_diagnose_gruppe_clock',
+              'sensor.solarbank_diagnose_gruppe_mirror',
+              'sensor.solarbank_diagnose_gruppe_unknown'] %}
+            {% set ns = namespace(l=[]) %}
+            {% for g in gruppen %}
+              {% for b in state_attr(g, 'bloecke_verworfen') or [] %}
+                {% set ns.l = ns.l + [state_attr(g, 'gruppe') ~ ' ' ~ b] %}
+              {% endfor %}
+            {% endfor %}
+            {{ ns.l }}
+
+      # -------------------------------------------------------------------
+      # 3  Eingefrorene Daten
+      #
+      # Der Test, der genau die Fehlerklasse vom 13.08. trifft. Geprueft wird
+      # last_reported, NICHT last_updated: last_updated springt nur bei einer
+      # WERTaenderung. Die Nennkapazitaet steht voellig korrekt seit Stunden
+      # auf 5,1 kWh - ueber last_updated waere sie dauerhaft "eingefroren",
+      # der Alarm damit verrauscht und wertlos. last_reported dagegen wandert
+      # bei jedem Schreibvorgang mit, auch wenn der Wert gleich bleibt, und
+      # steht genau dann still, wenn der Coordinator wirklich stehenbleibt.
+      #
+      # Schwelle: doppeltes Gruppenintervall plus 60 s. Ein verpasster Poll
+      # ist normal, zwei hintereinander nicht. Die 60 s decken den
+      # Minutentakt, in dem Home Assistant Templates mit now() neu rechnet.
+      # -------------------------------------------------------------------
+      - name: Solarbank Diagnose Daten eingefroren
+        unique_id: solarbank_diagnose_daten_eingefroren
+        device_class: problem
+        icon: mdi:snowflake-alert
+        state: >-
+          {% set gruppen = [
+            'sensor.solarbank_diagnose_gruppe_strings',
+            'sensor.solarbank_diagnose_gruppe_limits',
+            'sensor.solarbank_diagnose_gruppe_grid',
+            'sensor.solarbank_diagnose_gruppe_clock',
+            'sensor.solarbank_diagnose_gruppe_mirror',
+            'sensor.solarbank_diagnose_gruppe_unknown'] %}
+          {% set ns = namespace(alt=0) %}
+          {% for g in gruppen if has_value(g) %}
+            {% set iv = state_attr(g, 'intervall_s') %}
+            {% if iv is not none %}
+              {% if (now() - states[g].last_reported).total_seconds() > 2 * iv + 60 %}
+                {% set ns.alt = ns.alt + 1 %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.alt > 0 }}
+        attributes:
+          eingefrorene_gruppen: >-
+            {% set gruppen = [
+              'sensor.solarbank_diagnose_gruppe_strings',
+              'sensor.solarbank_diagnose_gruppe_limits',
+              'sensor.solarbank_diagnose_gruppe_grid',
+              'sensor.solarbank_diagnose_gruppe_clock',
+              'sensor.solarbank_diagnose_gruppe_mirror',
+              'sensor.solarbank_diagnose_gruppe_unknown'] %}
+            {% set ns = namespace(l=[]) %}
+            {% for g in gruppen if has_value(g) %}
+              {% set iv = state_attr(g, 'intervall_s') %}
+              {% if iv is not none %}
+                {% set alter = (now() - states[g].last_reported).total_seconds() %}
+                {% if alter > 2 * iv + 60 %}
+                  {% set ns.l = ns.l + [state_attr(g, 'gruppe') ~ ' seit ' ~ (alter / 60) | round(0) ~ ' min'] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.l }}
+
+      # -------------------------------------------------------------------
+      # 4  Entities unavailable
+      #
+      # Bewusst nur unavailable, NICHT unknown. Mehrere abgeleitete Groessen
+      # liefern planmaessig unknown, wenn ihre Voraussetzung fehlt - die
+      # Zelltemperatur unterhalb von 5 A, der Stromanteil nachts. Ein Test auf
+      # unknown wuerde deshalb jede Nacht ausloesen und waere nach zwei Wochen
+      # unsichtbar. Fehlende ROHREGISTER faengt Test 2 praeziser ab, weil er
+      # die Adresse nennt.
+      # -------------------------------------------------------------------
+      - name: Solarbank Diagnose Entities unavailable
+        unique_id: solarbank_diagnose_entities_unavailable
+        device_class: problem
+        icon: mdi:eye-off
+        state: >-
+          {% set dev = device_id('sensor.pv_modul_1_spannung') %}
+          {{ (device_entities(dev) | select('is_state', 'unavailable') | list | count) > 0
+             if dev else false }}
+        attributes:
+          anzahl: >-
+            {% set dev = device_id('sensor.pv_modul_1_spannung') %}
+            {{ (device_entities(dev) | select('is_state', 'unavailable') | list | count)
+               if dev else 0 }}
+          betroffen: >-
+            {% set dev = device_id('sensor.pv_modul_1_spannung') %}
+            {{ (device_entities(dev) | select('is_state', 'unavailable') | list)[:10]
+               if dev else [] }}
+
+      # -------------------------------------------------------------------
+      # 5  Energiebilanz
+      #
+      # Summe der vier Modulleistungen gegen die Gesamtleistung. Strang 4 ist
+      # als Differenz definiert, die Rechnung MUSS also aufgehen.
+      #
+      # Warum trotzdem eine Toleranz und keine Gleichheit: Die Modulleistungen
+      # kommen aus dem strings-Coordinator, die verglichene Gesamtleistung aus
+      # dem mirror-Coordinator. Beide laufen mit 30 s, aber versetzt - bei
+      # ziehenden Wolken entstehen daraus echte Differenzen aus reinem
+      # Zeitversatz. Dazu kommt die 10-W-Quantisierung von 10002/10003.
+      # Deshalb: 25 W oder 3 %, und der Befund gilt erst, wenn die Abweichung
+      # ueber eine Stunde ueberwiegt (history_stats weiter unten).
+      # -------------------------------------------------------------------
+      - name: Solarbank Diagnose Bilanzabweichung momentan
+        unique_id: solarbank_diagnose_bilanz_momentan
+        device_class: problem
+        icon: mdi:scale-unbalanced
+        state: >-
+          {% set mod = ['sensor.pv_modul_1_leistung', 'sensor.pv_modul_2_leistung',
+                        'sensor.pv_modul_3_leistung', 'sensor.pv_modul_4_leistung'] %}
+          {% set ges = 'sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus' %}
+          {% if mod | select('has_value') | list | count == 4 and has_value(ges) %}
+            {% set summe = mod | map('states') | map('float', 0) | sum %}
+            {% set gesamt = states(ges) | float(0) %}
+            {{ (summe - gesamt) | abs > [25, gesamt | abs * 0.03] | max }}
+          {% else %}
+            false
+          {% endif %}
+        attributes:
+          abweichung_w: >-
+            {% set mod = ['sensor.pv_modul_1_leistung', 'sensor.pv_modul_2_leistung',
+                          'sensor.pv_modul_3_leistung', 'sensor.pv_modul_4_leistung'] %}
+            {% set ges = 'sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus' %}
+            {% if mod | select('has_value') | list | count == 4 and has_value(ges) %}
+              {{ ((mod | map('states') | map('float', 0) | sum) - (states(ges) | float(0))) | round(1) }}
+            {% else %}
+              unbekannt
+            {% endif %}
+
+      # -------------------------------------------------------------------
+      # 6  Querpruefung gegen die offizielle Integration
+      #
+      # Beide lesen dasselbe Geraet. Eine dauerhafte Abweichung heisst, dass
+      # eine Seite falsch liest.
+      #
+      # Der Zeitversatz ist hier groesser als bei Test 5: die offizielle
+      # Integration pollt im Sekundenbereich, die Modbus-Seite alle 30 s. Bei
+      # einer Wolkenkante liegen dazwischen leicht mehrere hundert Watt, ohne
+      # dass irgendetwas kaputt waere. Genau deshalb wird der Momentanwert
+      # NICHT alarmiert, sondern erst sein Anteil ueber eine Stunde: ein
+      # Zeitversatz erzeugt kurze Spitzen, ein Lesefehler einen Dauerzustand.
+      # -------------------------------------------------------------------
+      - name: Solarbank Diagnose Querabweichung momentan
+        unique_id: solarbank_diagnose_querabweichung_momentan
+        device_class: problem
+        icon: mdi:compare-horizontal
+        state: >-
+          {% set mb = 'sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus' %}
+          {% set off = 'sensor.anker_solix_solarbank_4_e5000_pro_441_solarstrom' %}
+          {% if has_value(mb) and has_value(off) %}
+            {% set a = states(mb) | float(0) %}
+            {% set b = states(off) | float(0) %}
+            {{ (a - b) | abs > [60, [a | abs, b | abs] | max * 0.08] | max }}
+          {% else %}
+            false
+          {% endif %}
+        attributes:
+          abweichung_w: >-
+            {% set mb = 'sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus' %}
+            {% set off = 'sensor.anker_solix_solarbank_4_e5000_pro_441_solarstrom' %}
+            {% if has_value(mb) and has_value(off) %}
+              {{ ((states(mb) | float(0)) - (states(off) | float(0))) | round(0) }}
+            {% else %}
+              unbekannt
+            {% endif %}
+
+      # -------------------------------------------------------------------
+      # 7  Plausibilitaetsgrenzen
+      #
+      # Werte ausserhalb des physikalisch Moeglichen deuten auf Skalierungs-
+      # oder Vorzeichenfehler. Genau so ist der INT16-Fehler aufgefallen: aus
+      # -0,08 A wurden vorzeichenlos gelesen 655,28 A.
+      #
+      # Die Spannungsgrenzen gelten nur unter Last. Ohne Strom faehrt der
+      # Strang Richtung Leerlauf und verlaesst das MPP-Fenster voellig
+      # regulaer; nachts steht er nahe null.
+      # -------------------------------------------------------------------
+      - name: Solarbank Diagnose Messwert unplausibel
+        unique_id: solarbank_diagnose_messwert_unplausibel
+        device_class: problem
+        icon: mdi:alert-decagram
+        # Die Pruefliste wird im State und im Attribut getrennt gerechnet.
+        # Ein Template darf sein eigenes Attribut nicht lesen - das waere
+        # zirkulaer und der Sensor bliebe beim ersten Rendern leer.
+        state: >-
+          {% set ns = namespace(n=0) %}
+          {% for n in [1, 2, 3] %}
+            {% set u = 'sensor.pv_modul_' ~ n ~ '_spannung' %}
+            {% set i = 'sensor.pv_modul_' ~ n ~ '_strom' %}
+            {% set t = 'sensor.pv_modul_' ~ n ~ '_zelltemperatur' %}
+            {% if has_value(i) %}
+              {% set strom = states(i) | float(0) %}
+              {% if strom | abs > 36 %}{% set ns.n = ns.n + 1 %}{% endif %}
+              {% if strom > 1 and has_value(u) %}
+                {% set spg = states(u) | float(0) %}
+                {% if spg < 16 or spg > 50 %}{% set ns.n = ns.n + 1 %}{% endif %}
+              {% endif %}
+            {% endif %}
+            {% if has_value(t) %}
+              {% set tmp = states(t) | float(0) %}
+              {% if tmp < -20 or tmp > 95 %}{% set ns.n = ns.n + 1 %}{% endif %}
+            {% endif %}
+          {% endfor %}
+          {% if has_value('sensor.pv_ac_ausgangsstrom') %}
+            {% if states('sensor.pv_ac_ausgangsstrom') | float(0) | abs > 36 %}
+              {% set ns.n = ns.n + 1 %}
+            {% endif %}
+          {% endif %}
+          {{ ns.n > 0 }}
+        attributes:
+          befunde: >-
+            {% set ns = namespace(l=[]) %}
+            {% for n in [1, 2, 3] %}
+              {% set u = 'sensor.pv_modul_' ~ n ~ '_spannung' %}
+              {% set i = 'sensor.pv_modul_' ~ n ~ '_strom' %}
+              {% set t = 'sensor.pv_modul_' ~ n ~ '_zelltemperatur' %}
+              {% if has_value(i) %}
+                {% set strom = states(i) | float(0) %}
+                {% if strom | abs > 36 %}
+                  {% set ns.l = ns.l + ['Modul ' ~ n ~ ' Strom ' ~ strom ~ ' A ausserhalb 36 A'] %}
+                {% endif %}
+                {% if strom > 1 and has_value(u) %}
+                  {% set spg = states(u) | float(0) %}
+                  {% if spg < 16 or spg > 50 %}
+                    {% set ns.l = ns.l + ['Modul ' ~ n ~ ' Spannung ' ~ spg ~ ' V ausserhalb 16-50 V'] %}
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+              {% if has_value(t) %}
+                {% set tmp = states(t) | float(0) %}
+                {% if tmp < -20 or tmp > 95 %}
+                  {% set ns.l = ns.l + ['Modul ' ~ n ~ ' Zelltemperatur ' ~ tmp ~ ' Grad ausserhalb -20..95'] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {% if has_value('sensor.pv_ac_ausgangsstrom') %}
+              {% set ac = states('sensor.pv_ac_ausgangsstrom') | float(0) %}
+              {% if ac | abs > 36 %}
+                {% set ns.l = ns.l + ['AC-Ausgangsstrom ' ~ ac ~ ' A ausserhalb 36 A'] %}
+              {% endif %}
+            {% endif %}
+            {{ ns.l }}
+
+      # -------------------------------------------------------------------
+      # 8  Strang 4 dauerhaft auf null geklemmt
+      #
+      # sensor.pv_modul_4_leistung ist die Differenz aus Gesamtleistung und
+      # den drei gemessenen Straengen. Wird sie negativ, klemmt der Sensor auf
+      # null und vermerkt das im Attribut. Nachts ist das Rundungsrauschen und
+      # harmlos - deshalb die Bedingung, dass die Anlage ueberhaupt produziert.
+      # Bleibt es unter Last bestehen, stimmt eine Deutung nicht.
+      # -------------------------------------------------------------------
+      - name: Solarbank Diagnose Modul 4 geklemmt momentan
+        unique_id: solarbank_diagnose_modul4_geklemmt_momentan
+        device_class: problem
+        icon: mdi:arrow-collapse-down
+        state: >-
+          {{ state_attr('sensor.pv_modul_4_leistung', 'auf_null_geklemmt') | default(false, true)
+             and states('sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus') | float(0) > 100 }}
+
+      # -------------------------------------------------------------------
+      # 9  Verdaechtiger Dauerzustand
+      #
+      # Zwei Strangstroeme, die sich ueber eine Stunde nicht um einen einzigen
+      # Digit bewegen, WAEHREND eine unabhaengige Quelle nennenswerte
+      # Produktion meldet. Die Unabhaengigkeit ist der Kern: die offizielle
+      # Integration belegt, dass sich etwas bewegen MUESSTE. Ohne diesen
+      # Gegenzeugen waere der Test zirkulaer - stuende die Modbus-Seite still,
+      # saehe auch ihre eigene Leistung konstant aus.
+      #
+      # Hier ist last_changed richtig (nicht last_reported): gefragt ist, ob
+      # sich der WERT bewegt, nicht ob geschrieben wurde.
+      # -------------------------------------------------------------------
+      - name: Solarbank Diagnose Werte unveraendert
+        unique_id: solarbank_diagnose_werte_unveraendert
+        device_class: problem
+        icon: mdi:pause-octagon
+        state: >-
+          {% set off = 'sensor.anker_solix_solarbank_4_e5000_pro_441_solarstrom' %}
+          {% set a = 'sensor.pv_modul_2_strom' %}
+          {% set b = 'sensor.pv_modul_3_strom' %}
+          {% if has_value(off) and states(off) | float(0) > 150
+                and has_value(a) and has_value(b) %}
+            {{ (now() - states[a].last_changed).total_seconds() > 3600
+               and (now() - states[b].last_changed).total_seconds() > 3600 }}
+          {% else %}
+            false
+          {% endif %}
+
+      # -------------------------------------------------------------------
+      # 10  Koexistenz mit der offiziellen Integration
+      #
+      # Die zweite TCP-Verbindung darf anker_solix_official nicht wegbrechen
+      # lassen. Bewusst nur eine WARNUNG und mit 10 Minuten grosszuegig
+      # bemessen: diese Integration haengt an der Anker-Cloud, kurze Aussetzer
+      # sind dort normal und haben mit unserer Verbindung nichts zu tun. Ein
+      # anhaltendes Verstummen dagegen ist genau der Zustand, der nicht
+      # eintreten darf.
+      # -------------------------------------------------------------------
+      - name: Solarbank Diagnose Offizielle Integration stumm
+        unique_id: solarbank_diagnose_offizielle_stumm
+        device_class: problem
+        icon: mdi:cloud-off-outline
+        state: >-
+          {% set off = 'sensor.anker_solix_solarbank_4_e5000_pro_441_solarstrom' %}
+          {% if not has_value(off) %}
+            true
+          {% else %}
+            {{ (now() - states[off].last_reported).total_seconds() > 600 }}
+          {% endif %}
+
+  # ---------------------------------------------------------------------
+  # Aggregierter Gesamtzustand
+  #
+  # Eine Entity, die auf einen Blick sagt, woran man ist. Die Einzelbefunde
+  # daneben sagen WAS klemmt - der Betreiber soll beim Blick aufs Handy die
+  # Ursache sehen und nicht erst suchen muessen. Deshalb traegt diese Entity
+  # die Klartextliste als Attribut mit; die Benachrichtigung liest sie von
+  # hier und muss die Logik nicht wiederholen.
+  # ---------------------------------------------------------------------
+  - sensor:
+      - name: Solarbank Diagnose Gesamtzustand
+        unique_id: solarbank_diagnose_gesamtzustand
+        icon: >-
+          {% set z = states('sensor.solarbank_diagnose_gesamtzustand') %}
+          {% if z == 'stoerung' %}mdi:alert-octagon
+          {% elif z == 'warnung' %}mdi:alert
+          {% else %}mdi:check-circle{% endif %}
+        state: >-
+          {% set stoerung = [
+            'binary_sensor.solarbank_diagnose_integration_ausgefallen',
+            'binary_sensor.solarbank_diagnose_leseblock_verworfen',
+            'binary_sensor.solarbank_diagnose_daten_eingefroren',
+            'binary_sensor.solarbank_diagnose_entities_unavailable',
+            'binary_sensor.solarbank_diagnose_messwert_unplausibel',
+            'binary_sensor.solarbank_diagnose_werte_unveraendert',
+            'binary_sensor.solarbank_diagnose_bilanzabweichung_dauerhaft'] %}
+          {% set warnung = [
+            'binary_sensor.solarbank_diagnose_querabweichung_dauerhaft',
+            'binary_sensor.solarbank_diagnose_modul_4_dauerhaft_geklemmt',
+            'binary_sensor.solarbank_diagnose_offizielle_integration_stumm'] %}
+          {% if stoerung | select('is_state', 'on') | list | count > 0 %}
+            stoerung
+          {% elif warnung | select('is_state', 'on') | list | count > 0 %}
+            warnung
+          {% else %}
+            ok
+          {% endif %}
+        attributes:
+          befunde: >-
+            {% set karte = {
+              'binary_sensor.solarbank_diagnose_integration_ausgefallen':
+                'Modbus-Verbindung oder Integration ausgefallen',
+              'binary_sensor.solarbank_diagnose_leseblock_verworfen':
+                'Leseblock verworfen, Register fehlen',
+              'binary_sensor.solarbank_diagnose_daten_eingefroren':
+                'Daten eingefroren, Gruppe aktualisiert nicht mehr',
+              'binary_sensor.solarbank_diagnose_entities_unavailable':
+                'Entities unavailable',
+              'binary_sensor.solarbank_diagnose_messwert_unplausibel':
+                'Messwert ausserhalb der Plausibilitaetsgrenzen',
+              'binary_sensor.solarbank_diagnose_werte_unveraendert':
+                'Werte stehen still trotz Produktion',
+              'binary_sensor.solarbank_diagnose_bilanzabweichung_dauerhaft':
+                'Energiebilanz geht dauerhaft nicht auf',
+              'binary_sensor.solarbank_diagnose_querabweichung_dauerhaft':
+                'Dauerhafte Abweichung zur offiziellen Integration',
+              'binary_sensor.solarbank_diagnose_modul_4_dauerhaft_geklemmt':
+                'Modul 4 dauerhaft auf null geklemmt',
+              'binary_sensor.solarbank_diagnose_offizielle_integration_stumm':
+                'Offizielle Integration liefert nichts mehr'} %}
+            {% set ns = namespace(l=[]) %}
+            {% for e, t in karte.items() if is_state(e, 'on') %}
+              {% set ns.l = ns.l + [t] %}
+            {% endfor %}
+            {{ ns.l }}
+          anzahl: >-
+            {% set alle = [
+              'binary_sensor.solarbank_diagnose_integration_ausgefallen',
+              'binary_sensor.solarbank_diagnose_leseblock_verworfen',
+              'binary_sensor.solarbank_diagnose_daten_eingefroren',
+              'binary_sensor.solarbank_diagnose_entities_unavailable',
+              'binary_sensor.solarbank_diagnose_messwert_unplausibel',
+              'binary_sensor.solarbank_diagnose_werte_unveraendert',
+              'binary_sensor.solarbank_diagnose_bilanzabweichung_dauerhaft',
+              'binary_sensor.solarbank_diagnose_querabweichung_dauerhaft',
+              'binary_sensor.solarbank_diagnose_modul_4_dauerhaft_geklemmt',
+              'binary_sensor.solarbank_diagnose_offizielle_integration_stumm'] %}
+            {{ alle | select('is_state', 'on') | list | count }}
+
+# ---------------------------------------------------------------------------
+# Dauerhaftigkeit statt Momentaufnahme
+#
+# Drei Befunde duerfen NICHT auf den Momentanwert alarmieren, weil ihr
+# Momentanwert legitim schwankt. history_stats misst, welchen Anteil eines
+# Zeitfensters der Zustand eingenommen hat - kurze Ausschlaege bleiben klein,
+# ein Dauerzustand geht gegen 100 %. Genau die Trennung, die verlangt war:
+# Zeitversatz von echtem Lesefehler unterscheiden.
+# ---------------------------------------------------------------------------
+sensor:
+  - platform: history_stats
+    name: Solarbank Diagnose Bilanzabweichung Anteil 1h
+    entity_id: binary_sensor.solarbank_diagnose_bilanzabweichung_momentan
+    state: "on"
+    type: ratio
+    start: "{{ now() - timedelta(hours=1) }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Solarbank Diagnose Querabweichung Anteil 1h
+    entity_id: binary_sensor.solarbank_diagnose_querabweichung_momentan
+    state: "on"
+    type: ratio
+    start: "{{ now() - timedelta(hours=1) }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Solarbank Diagnose Modul 4 geklemmt Anteil 6h
+    entity_id: binary_sensor.solarbank_diagnose_modul_4_geklemmt_momentan
+    state: "on"
+    type: ratio
+    start: "{{ now() - timedelta(hours=6) }}"
+    end: "{{ now() }}"
+
+# ---------------------------------------------------------------------------
+# Schwellwerte auf die Anteile
+#
+# Native threshold-Helfer statt Template: sie sind schemavalidiert und bringen
+# ihre Hysterese mit. Ein Template mit "> 60" waere hier die schlechtere Wahl.
+# ---------------------------------------------------------------------------
+binary_sensor:
+  - platform: threshold
+    name: Solarbank Diagnose Bilanzabweichung dauerhaft
+    entity_id: sensor.solarbank_diagnose_bilanzabweichung_anteil_1h
+    upper: 60
+    hysteresis: 10
+
+  - platform: threshold
+    name: Solarbank Diagnose Querabweichung dauerhaft
+    entity_id: sensor.solarbank_diagnose_querabweichung_anteil_1h
+    upper: 60
+    hysteresis: 10
+
+  - platform: threshold
+    name: Solarbank Diagnose Modul 4 dauerhaft geklemmt
+    entity_id: sensor.solarbank_diagnose_modul_4_geklemmt_anteil_6h
+    upper: 25
+    hysteresis: 5
+
+# ---------------------------------------------------------------------------
+# Alarmierung
+#
+# Entprellt ueber das native for:, nicht ueber ein Template mit Zeitrechnung.
+# Ein einzelner verpasster Poll darf nicht sofort das Handy klingeln lassen.
+#
+# ZWEI Ausloeser je Automation, und das ist keine Redundanz aus Vorsicht,
+# sondern die Reparatur eines im Test gefundenen Fehlers:
+#
+# Ein Zustandstrigger braucht ein AENDERUNGSEREIGNIS. Kommt Home Assistant
+# bereits im Zustand "stoerung" hoch - Integration nicht geladen, Geraet nicht
+# erreichbar - dann gibt es diesen Uebergang nie, und der Alarm bliebe
+# dauerhaft aus. Genau dieser Fall ist am 13.08. beim Provozieren aufgefallen:
+# nach einem Neuladen stand der Gesamtzustand auf "stoerung", und die
+# Automation loeste auch nach sechs Minuten nicht aus (last_triggered blieb
+# null). Ein Alarm, der nach einem Neustart schweigt, waere wertlos gewesen.
+#
+# Deshalb zusaetzlich ein Zeitmuster alle fuenf Minuten. Die eigentliche
+# Pruefung liegt dann in der BEDINGUNG, die mit ihrem eigenen for: dieselbe
+# Entprellung leistet - unabhaengig davon, ob je ein Uebergang stattfand.
+#
+# Der Latch macht das idempotent: ohne ihn meldete das Zeitmuster alle fuenf
+# Minuten erneut.
+#
+# Kanal: notify.iphone_von_schleon ueber notify.send_message - der Weg, den
+# die Anlage bereits fuer sicherheitsrelevante Meldungen benutzt. Zusaetzlich
+# immer eine persistente Benachrichtigung, und zwar NACH dem Push und mit
+# continue_on_error davor: am 12.08. ist ein Push an einem Token-Problem
+# gescheitert. Ein fehlgeschlagener Push darf die Meldung nicht verschlucken.
+# ---------------------------------------------------------------------------
+automation:
+  - id: solarbank_diagnose_alarm
+    alias: "Solarbank Diagnose: Alarm bei Stoerung"
+    description: >-
+      Meldet eine Stoerung der Modbus-Integration, sobald sie fuenf Minuten
+      anhaelt. Die Ursache steht im Text, damit sie nicht gesucht werden muss.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: sensor.solarbank_diagnose_gesamtzustand
+        to: stoerung
+        for: "00:05:00"
+      - trigger: time_pattern
+        minutes: "/5"
+    conditions:
+      - condition: state
+        entity_id: sensor.solarbank_diagnose_gesamtzustand
+        state: stoerung
+        for: "00:05:00"
+      - condition: state
+        entity_id: input_boolean.solarbank_diagnose_alarm_aktiv
+        state: "off"
+    actions:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.solarbank_diagnose_alarm_aktiv
+      - action: notify.send_message
+        target:
+          entity_id: notify.iphone_von_schleon
+        data:
+          title: "Solarbank Diagnose: Stoerung"
+          message: >-
+            {{ (state_attr('sensor.solarbank_diagnose_gesamtzustand', 'befunde')
+                or ['Ursache nicht ermittelbar']) | join('; ') }}
+        continue_on_error: true
+      - action: persistent_notification.create
+        data:
+          notification_id: solarbank_diagnose
+          title: "Solarbank Diagnose: Stoerung"
+          message: >-
+            {% for b in state_attr('sensor.solarbank_diagnose_gesamtzustand', 'befunde')
+                        or ['Ursache nicht ermittelbar'] %}
+            - {{ b }}
+            {% endfor %}
+
+            Einzelheiten im Dashboard "Solarbank Diagnose".
+
+  - id: solarbank_diagnose_hinweis
+    alias: "Solarbank Diagnose: Hinweis bei Warnung"
+    description: >-
+      Warnungen sind Befunde, die noch keinen Ausfall bedeuten. Sie landen
+      bewusst nur in der Benachrichtigungsliste und nicht auf dem Handy -
+      ein Alarmkanal, der zu oft klingelt, wird ignoriert.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: sensor.solarbank_diagnose_gesamtzustand
+        to: warnung
+        for: "00:15:00"
+      - trigger: time_pattern
+        minutes: "/5"
+    conditions:
+      - condition: state
+        entity_id: sensor.solarbank_diagnose_gesamtzustand
+        state: warnung
+        for: "00:15:00"
+      - condition: state
+        entity_id: input_boolean.solarbank_diagnose_hinweis_aktiv
+        state: "off"
+    actions:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.solarbank_diagnose_hinweis_aktiv
+      - action: persistent_notification.create
+        data:
+          notification_id: solarbank_diagnose_warnung
+          title: "Solarbank Diagnose: Warnung"
+          message: >-
+            {{ (state_attr('sensor.solarbank_diagnose_gesamtzustand', 'befunde')
+                or ['unbekannt']) | join('; ') }}
+
+  - id: solarbank_diagnose_entwarnung
+    alias: "Solarbank Diagnose: Entwarnung"
+    description: >-
+      Raeumt die Meldungen wieder ab, sobald zehn Minuten alles in Ordnung
+      ist. Die Bedingung auf den Latch verhindert eine Entwarnung ohne
+      vorangegangenen Alarm - etwa nach einem Neustart.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: sensor.solarbank_diagnose_gesamtzustand
+        to: ok
+        for: "00:10:00"
+      - trigger: time_pattern
+        minutes: "/5"
+    conditions:
+      - condition: state
+        entity_id: sensor.solarbank_diagnose_gesamtzustand
+        state: ok
+        for: "00:10:00"
+      # Nur raeumen, wenn ueberhaupt etwas gemeldet wurde. Sonst liefe die
+      # Entwarnung nach jedem Neustart einmal ins Leere und schickte einen
+      # Push, den niemand einordnen kann.
+      - condition: or
+        conditions:
+          - condition: state
+            entity_id: input_boolean.solarbank_diagnose_alarm_aktiv
+            state: "on"
+          - condition: state
+            entity_id: input_boolean.solarbank_diagnose_hinweis_aktiv
+            state: "on"
+    actions:
+      # Zuerst pruefen, dann loeschen: nach dem Zuruecksetzen des Latch waere
+      # nicht mehr feststellbar, ob ueberhaupt ein Push rausging. Entwarnt wird
+      # nur auf dem Kanal, auf dem auch alarmiert wurde - eine Entwarnung fuer
+      # eine blosse Warnung, die nie am Handy ankam, waere Rauschen.
+      - if:
+          - condition: state
+            entity_id: input_boolean.solarbank_diagnose_alarm_aktiv
+            state: "on"
+        then:
+          - action: notify.send_message
+            target:
+              entity_id: notify.iphone_von_schleon
+            data:
+              title: "Solarbank Diagnose: Entwarnung"
+              message: >-
+                Die Modbus-Integration liefert seit zehn Minuten wieder sauber.
+            continue_on_error: true
+      - action: input_boolean.turn_off
+        target:
+          entity_id:
+            - input_boolean.solarbank_diagnose_alarm_aktiv
+            - input_boolean.solarbank_diagnose_hinweis_aktiv
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: solarbank_diagnose
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: solarbank_diagnose_warnung
