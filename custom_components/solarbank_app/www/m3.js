@@ -724,6 +724,17 @@ button, input, select {
   background: var(--md-sys-color-surface-container);
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
+.md-app-bar-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; margin-right: 4px;
+  border: none; background: none; cursor: pointer; padding: 0;
+  color: var(--md-sys-color-on-surface);
+  border-radius: 50%;
+  /* Der Chevron zeigt nach rechts; fuer "zurueck" gespiegelt. */
+  transform: rotate(180deg);
+}
+.md-app-bar-back:hover { background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent); }
+.md-app-bar-back[hidden] { display: none; }
 .md-app-bar-title {
   color: var(--md-sys-color-on-surface);
 }

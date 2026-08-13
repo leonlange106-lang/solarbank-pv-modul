@@ -207,7 +207,8 @@ export function buildHaus(ctx) {
     g.appendChild(svgEl('rect', { x: -15, y: -8, width: 30, height: 16, rx: 2, class: 'sb-modul-basis' }));
     const hell = svgEl('rect', { x: -15, y: -8, width: 30, height: 16, rx: 2, class: 'sb-modul-hell' });
     g.appendChild(hell);
-    const schatten = svgEl('rect', { x: -15, y: -8, width: 30, height: 0, class: 'sb-modul-schatten' });
+    const schatten = svgEl('rect', { x: -15, y: -8, width: 30, height: 100, class: 'sb-modul-schatten' });
+    schatten.style.transform = 'scaleY(0)';
     g.appendChild(schatten);
     g.appendChild(svgEl('rect', { x: -15, y: -8, width: 30, height: 16, rx: 2, class: 'sb-modul-kontur' }));
     svg.appendChild(g);
@@ -318,7 +319,7 @@ export function buildHaus(ctx) {
       schattenHinweis.hidden = true;
       for (let i = 0; i < 4; i++) {
         const abdeckung = 16 * ((100 - anteile[i]) / 100);
-        modulSchattenRects[i].setAttribute('height', abdeckung.toFixed(1));
+        modulSchattenRects[i].style.transform = `scaleY(${(abdeckung / 100).toFixed(4)})`;
         modulSchattenRects[i].style.opacity = '1';
       }
     } else {
@@ -354,9 +355,12 @@ export function buildHaus(ctx) {
 
     // Speicherfuellstand am Symbol.
     const soc = Math.min(100, Math.max(0, data.num(`${ANKER}_soc`, 0)));
-    const hoehe = (BATT_UNTEN - BATT_OBEN - 4) * (soc / 100);
-    battFuellung.setAttribute('height', hoehe.toFixed(1));
-    battFuellung.setAttribute('y', (BATT_UNTEN - 2 - hoehe).toFixed(1));
+    // Volle Hoehe fest, Fuellstand ueber scaleY vom unteren Rand aus.
+    // Geometrie und y bleiben konstant, animiert wird nur die Transformation.
+    const voll = BATT_UNTEN - BATT_OBEN - 4;
+    battFuellung.setAttribute('height', voll.toFixed(1));
+    battFuellung.setAttribute('y', (BATT_UNTEN - 2 - voll).toFixed(1));
+    battFuellung.style.transform = `scaleY(${(soc / 100).toFixed(4)})`;
   };
 
   wrap.update = update;
@@ -440,13 +444,21 @@ if (!document.head.querySelector('style[data-sb-style="haus"]')) {
 
     .sb-modul-basis { fill: var(--sb-outline-variant); }
     .sb-modul-hell { fill: var(--sb-primary); transition: fill-opacity 600ms ease; }
-    .sb-modul-schatten { fill: rgba(10, 8, 4, 0.55); transition: height 600ms ease; }
+    /* scaleY statt height: eine Geometrieaenderung zwingt den Renderer zum
+       Neuaufbau, eine Transformation laeuft auf dem Compositor. Die Hoehe
+       bleibt fest, skaliert wird von der Oberkante nach unten. */
+    .sb-modul-schatten { fill: rgba(10, 8, 4, 0.55);
+      transform-origin: top; transition: transform 600ms ease; }
     .sb-modul-kontur { fill: none; stroke: var(--sb-outline); stroke-width: 0.75; }
     .sb-modul-label { font-size: 8px; fill: var(--sb-on-surface-variant); }
 
     .sb-batt-huelle, .sb-batt-kontur { fill: none; stroke: var(--sb-outline); stroke-width: 1.2; }
     .sb-batt-nub { fill: var(--sb-outline); }
-    .sb-batt-fuellung { fill: var(--sb-primary); transition: height 600ms ease, y 600ms ease; }
+    /* Wie beim Schatten: skalieren statt Geometrie animieren. Ursprung
+       unten, damit die Fuellung von unten waechst - das ersetzt zugleich
+       die y-Animation. */
+    .sb-batt-fuellung { fill: var(--sb-primary);
+      transform-origin: bottom; transition: transform 600ms ease; }
 
     .sb-netz-kasten { fill: var(--sb-surface-container-high); stroke: var(--sb-outline-variant); stroke-width: 1; }
     .sb-netz-blitz { fill: var(--sb-secondary); }

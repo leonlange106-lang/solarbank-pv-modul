@@ -134,16 +134,33 @@ class SolarbankApp extends HTMLElement {
     const bar = document.createElement('header');
     bar.className = 'md-app-bar';
 
+    // Zurueck-Pfeil, nur in Unteransichten sichtbar (M3 Top App Bar mit
+    // Navigation Icon). Fuehrt zur uebergeordneten Ansicht, nicht in die
+    // Browser-Historie - der Weg ist dadurch immer vorhersagbar.
+    const zurueck = document.createElement('button');
+    zurueck.type = 'button';
+    zurueck.className = 'md-app-bar-back';
+    zurueck.setAttribute('aria-label', 'Zurueck');
+    zurueck.innerHTML = icon('chevron');
+    zurueck.hidden = true;
+    zurueck.addEventListener('click', () => {
+      const aktuell = VIEWS.find((v) => v.id === this._activeViewId);
+      const ziel = (aktuell && aktuell.parent) || (VIEWS[0] && VIEWS[0].id);
+      if (ziel) location.hash = `#/${ziel}`;
+    });
+    this._backEl = zurueck;
+
     const title = document.createElement('span');
     title.className = 'md-app-bar-title md-title-large';
     title.textContent = 'Solarbank';
+    this._titleEl = title;
 
     const statusDot = document.createElement('span');
     statusDot.className = 'md-status-dot';
     statusDot.title = 'Systemzustand: unbekannt';
     this._statusDotEl = statusDot;
 
-    bar.append(title, statusDot);
+    bar.append(zurueck, title, statusDot);
     return bar;
   }
 
@@ -178,7 +195,13 @@ class SolarbankApp extends HTMLElement {
     rail.setAttribute('aria-label', 'Hauptnavigation');
 
     this._navItems = [];
-    for (const view of VIEWS) {
+    // Nur oberste Ziele. Ansichten mit `parent` sind Unteransichten und
+    // werden ueber Einstiegskarten erreicht, nicht ueber die Leiste.
+    // Faellt die Markierung ganz weg, zeigen wir alles - sonst waere die
+    // App nach einem Fehler in views.js unbedienbar.
+    const zieleOben = VIEWS.filter((v) => v && v.top);
+    const ziele = zieleOben.length ? zieleOben : VIEWS;
+    for (const view of ziele) {
       const barItem = this._makeNavItem(view);
       const railItem = this._makeNavItem(view);
       bar.appendChild(barItem);
@@ -282,6 +305,12 @@ class SolarbankApp extends HTMLElement {
         this._errorCard('Ansicht nicht gefunden.', `Es gibt keine Ansicht mit der Kennung "${id}".`)
       );
       return;
+    }
+
+    // Titel und Zurueck-Pfeil an die Ansicht anpassen.
+    if (this._backEl) this._backEl.hidden = !view.parent;
+    if (this._titleEl) {
+      this._titleEl.textContent = view.parent ? view.label || 'Solarbank' : 'Solarbank';
     }
 
     const ctx = this._makeCtx();

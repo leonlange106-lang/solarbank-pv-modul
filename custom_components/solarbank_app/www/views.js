@@ -118,7 +118,8 @@ function balkenZeile(label, prozent) {
   row.appendChild(el('span', { cls: 'label sb-balken-label', text: label }));
   const spur = el('div', { cls: 'sb-balken-spur' });
   const fuellung = el('div', { cls: 'sb-balken-fuellung' });
-  fuellung.style.width = `${p}%`;
+  // scaleX statt width: laeuft auf dem Compositor, kein Layout je Frame.
+  fuellung.style.transform = `scaleX(${(p / 100).toFixed(4)})`;
   spur.appendChild(fuellung);
   row.appendChild(spur);
   row.appendChild(el('span', { cls: 'body sb-balken-wert', text: `${p.toFixed(0).replace('.', ',')} %` }));
@@ -420,11 +421,39 @@ function schreibHinweis() {
 // ---------------------------------------------------------------------------
 // Die neun Ansichten
 // ---------------------------------------------------------------------------
+/** Einstiegskarten in die Unteransichten.
+ *
+ *  PV und Akku sind ausdruecklich UNTERuebersichten, keine gleichrangigen
+ *  Reiter - eine Navigation Bar traegt nach M3 drei bis fuenf Ziele, nicht
+ *  neun. Erreichbar sind sie ueber diese Karten und ueber die Startseite.
+ */
+function unterAnsichten(ctx, eintraege) {
+  const gitter = el('div', { cls: 'sb-unter-gitter' });
+  for (const [zielId, titel, iconName, text] of eintraege) {
+    const karte = el('button', { cls: 'sb-unter-karte', attrs: { type: 'button' } });
+    const kopf = el('div', { cls: 'sb-unter-kopf' });
+    const ikon = el('span', { cls: 'sb-unter-icon' });
+    try { ikon.innerHTML = icon(iconName); } catch (e) { /* Icon optional */ }
+    kopf.appendChild(ikon);
+    kopf.appendChild(el('span', { cls: 'md-title-medium', text: titel }));
+    const pfeil = el('span', { cls: 'sb-unter-pfeil' });
+    try { pfeil.innerHTML = icon('chevron'); } catch (e) { /* Icon optional */ }
+    kopf.appendChild(pfeil);
+    karte.appendChild(kopf);
+    karte.appendChild(el('div', { cls: 'md-body-small sb-unter-text', text }));
+    karte.addEventListener('click', () => ctx.go(zielId));
+    try { ripple(karte); } catch (e) { /* Ripple optional */ }
+    gitter.appendChild(karte);
+  }
+  return gitter;
+}
+
 export const VIEWS = [
   {
     id: 'start',
     label: 'Start',
     icon: 'home',
+    top: true,
     build(ctx) {
       const wrap = el('div', { cls: 'sb-view sb-view-start' });
       wrap.appendChild(buildHaus(ctx));
@@ -452,10 +481,20 @@ export const VIEWS = [
     id: 'system',
     label: 'Gesamtsystem',
     icon: 'chart',
+    top: true,
     build(ctx) {
       const { data } = ctx;
       const wrap = el('div', { cls: 'sb-view' });
       wrap.appendChild(ansichtsKopf('Gesamtsystem', 'chart', 'Erzeugung, Speicher, Hauslast, Netz und Tageswerte.'));
+      wrap.appendChild(abschnitt('Im Detail', 'chart'));
+      wrap.appendChild(
+        unterAnsichten(ctx, [
+          ['pv', 'PV', 'solar-power', 'Vier Straenge einzeln, theoretische Leistung, Verschattungsverlust.'],
+          ['akku', 'Akku', 'battery', 'Ladezustand, Leistung, Energien, Prognose.'],
+          ['prognose', 'Prognose', 'sun', 'Lernstand, Pegel, Tagesform, Truebung.'],
+          ['schatten', 'Verschattung', 'sun', 'Fahrplan gegen Messung je Strang.'],
+        ])
+      );
 
       wrap.appendChild(abschnitt('Erzeugung', 'solar-power'));
       wrap.appendChild(
@@ -541,6 +580,7 @@ export const VIEWS = [
     id: 'pv',
     label: 'PV',
     icon: 'solar-power',
+    parent: 'system',
     build(ctx) {
       const { data } = ctx;
       const wrap = el('div', { cls: 'sb-view' });
@@ -576,6 +616,7 @@ export const VIEWS = [
     id: 'akku',
     label: 'Akku',
     icon: 'battery',
+    parent: 'system',
     build(ctx) {
       const { data } = ctx;
       const wrap = el('div', { cls: 'sb-view' });
@@ -629,6 +670,7 @@ export const VIEWS = [
     id: 'prognose',
     label: 'Prognose',
     icon: 'sun',
+    parent: 'system',
     build(ctx) {
       const { data } = ctx;
       const wrap = el('div', { cls: 'sb-view' });
@@ -679,6 +721,7 @@ export const VIEWS = [
     id: 'schatten',
     label: 'Verschattung',
     icon: 'sun',
+    parent: 'system',
     build(ctx) {
       const { data } = ctx;
       const wrap = el('div', { cls: 'sb-view' });
@@ -728,6 +771,7 @@ export const VIEWS = [
     id: 'steuerung',
     label: 'Steuerung',
     icon: 'tune',
+    top: true,
     build(ctx) {
       const { data } = ctx;
       const wrap = el('div', { cls: 'sb-view' });
@@ -841,10 +885,16 @@ export const VIEWS = [
     id: 'admin',
     label: 'Parameter',
     icon: 'cog',
+    top: true,
     build(ctx) {
       const { data } = ctx;
       const wrap = el('div', { cls: 'sb-view' });
       wrap.appendChild(ansichtsKopf('Parameter', 'cog', 'Alle Stellgroessen und Meta-Parameter an einer Stelle.'));
+      wrap.appendChild(
+        unterAnsichten(ctx, [
+          ['diagnose', 'Diagnose', 'shield', 'Zehn Pruefungen, Befunde, Datenbankgroesse.'],
+        ])
+      );
       wrap.appendChild(schreibHinweis());
 
       wrap.appendChild(abschnitt('Stellgroessen: Anker-Solix (schreibbar)', 'cog'));
@@ -990,6 +1040,7 @@ export const VIEWS = [
     id: 'diagnose',
     label: 'Diagnose',
     icon: 'shield',
+    parent: 'admin',
     build(ctx) {
       const { data } = ctx;
       const wrap = el('div', { cls: 'sb-view' });
@@ -1139,14 +1190,36 @@ if (!document.head.querySelector('style[data-sb-style="views"]')) {
     .sb-chip-lesend { background: var(--sb-surface-container-high); color: var(--sb-on-surface-variant); }
     .sb-chip-warnung { background: var(--sb-primary-container); color: var(--sb-on-primary-container); }
 
+    /* M3 loest Hinweise ueber getoente Container. Eine fruehere Fassung
+       hatte einen 4px-Akzentbalken links - das ist weder M3 noch gute
+       Gestaltung, sondern das bekannteste Erkennungsmerkmal generierter
+       Oberflaechen. Ersetzt durch Flaeche und Textfarbe. */
     .sb-hinweis {
       border-radius: var(--sb-corner-m);
       padding: 12px 16px;
       background: var(--sb-surface-container-high);
-      border-left: 4px solid var(--sb-outline);
+      color: var(--sb-on-surface-variant);
     }
-    .sb-hinweis-warnung { border-left-color: var(--sb-primary); }
-    .sb-hinweis-info { border-left-color: var(--sb-outline); }
+    .sb-hinweis-warnung {
+      background: var(--sb-primary-container);
+      color: var(--sb-on-primary-container);
+    }
+    .sb-hinweis-info { background: var(--sb-surface-container-high); }
+
+        .sb-unter-gitter { display: grid; gap: 8px; }
+    .sb-unter-karte {
+      display: block; width: 100%; text-align: left; cursor: pointer;
+      font: inherit; color: var(--sb-on-surface);
+      background: var(--sb-surface-container-high);
+      border: none; border-radius: var(--sb-corner-l);
+      padding: 14px 16px; min-height: 48px;
+      transition: background-color 150ms ease;
+    }
+    .sb-unter-karte:hover { background: var(--sb-surface-container-highest); }
+    .sb-unter-kopf { display: flex; align-items: center; gap: 12px; }
+    .sb-unter-icon { display: inline-flex; color: var(--sb-primary); }
+    .sb-unter-pfeil { margin-left: auto; display: inline-flex; opacity: 0.7; }
+    .sb-unter-text { margin-top: 4px; color: var(--sb-on-surface-variant); }
 
     .sb-quelle { display: block; margin-bottom: 4px; opacity: 0.85; }
 
@@ -1184,7 +1257,9 @@ if (!document.head.querySelector('style[data-sb-style="views"]')) {
 
     .sb-balkenzeile { display: grid; grid-template-columns: 110px 1fr 64px; align-items: center; gap: 10px; padding: 4px 0; }
     .sb-balken-spur { height: 12px; border-radius: var(--sb-corner-xl); background: var(--sb-surface-container-high); overflow: hidden; }
-    .sb-balken-fuellung { height: 100%; background: var(--sb-primary); transition: width var(--sb-motion-emphasized) ease; }
+    .sb-balken-fuellung { height: 100%; width: 100%; background: var(--sb-primary);
+      transform-origin: left center; transform: scaleX(0);
+      transition: transform var(--sb-motion-emphasized) ease; }
     .sb-balken-wert { text-align: right; }
     .sb-sonnenstand { opacity: 0.85; }
 
