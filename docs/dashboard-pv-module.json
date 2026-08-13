@@ -1069,6 +1069,87 @@
           "cards": [
             {
               "type": "heading",
+              "heading": "Was die Verschattung kostet",
+              "heading_style": "title",
+              "icon": "mdi:cash-minus",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Reine Messung: 4 × der beste der vier Stränge ist die unverschattete Referenz. Kein Modell, kein Einschwingen.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_theoretische_leistung",
+              "name": "Ohne Schatten möglich",
+              "icon": "mdi:solar-power",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_verschattungsverlust",
+              "name": "Verlust jetzt",
+              "icon": "mdi:solar-panel-large",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_theoretische_energie_tag",
+              "name": "Heute möglich",
+              "icon": "mdi:sun-clock",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_verschattungsverlust_tag",
+              "name": "Heute verloren",
+              "icon": "mdi:cash-minus",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "markdown",
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "Am klaren Tageslauf des 12.08. gerechnet: **12,38 kWh möglich, 2,23 kWh verloren — 18,1 %.**\n\nDie beiden Tageswerte laufen ab jetzt mit. Sie sind die Zahl für die Ausbauentscheidung Mitte September."
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "**Bewölkung ist kein Verschattungsverlust.** Zieht eine Wolke über die ganze Anlage, fallen alle vier gleichmäßig — das Maximum sinkt mit und der Verlust geht korrekt gegen null. Gewollt, kein Fehler.\n\n**Bei Abregelung rechnen die Sensoren nicht.** Bei vollem Speicher drosselt der Wechselrichter alle vier Tracker gleichzeitig; dann wäre auch die Referenz gedrückt. Sie liefern dann `unknown` statt einer falschen Zahl, der Grund steht im Attribut `grund`, und das Tagesintegral bleibt stehen.\n\n**Gleichmäßige Verschmutzung sieht das Verfahren nicht.** Es misst nur Unterschiede *zwischen* den Strängen. Rechenweg in `docs/VERSCHATTUNG-PROFIL.md`."
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
               "heading": "Jetzt: erwartet gegen gemessen",
               "heading_style": "title",
               "icon": "mdi:compare-horizontal",
@@ -1253,7 +1334,6 @@
             },
             {
               "type": "history-graph",
-              "hours_to_show": 12,
               "grid_options": {
                 "columns": "full",
                 "rows": 5
@@ -1278,8 +1358,14 @@
                   "entity": "sensor.pv_modul_4_leistung",
                   "name": "PV4 · ganz links",
                   "color": "#8e24aa"
+                },
+                {
+                  "entity": "sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus",
+                  "color": "deep-orange"
                 }
-              ]
+              ],
+              "hours_to_show": 12,
+              "logarithmic_scale": false
             }
           ]
         },
