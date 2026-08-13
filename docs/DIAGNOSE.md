@@ -396,6 +396,75 @@ Formel — der Unterschied war ein Artefakt des chirurgischen Testeingriffs.
 
 ---
 
+# Zuordnung der Straenge zur Dachflaeche
+
+**Vom Betreiber am 13.08.2026 per Foto belegt.** Bis dahin war die Zuordnung
+offen und in `input_select.pv_modul_N_dachposition` als `unbestaetigt: ...`
+gefuehrt.
+
+Blick auf die Dachflaeche, **von rechts nach links**:
+
+| Strang | Position in der Reihe |
+|---|---|
+| PV1 | ganz rechts |
+| PV2 | daneben |
+| PV3 | daneben |
+| PV4 | ganz links |
+
+Damit ist die **raeumliche Reihenfolge** gesichert. Eine Himmelsrichtung ist
+damit **nicht** belegt: `rechts` und `links` beziehen sich auf die
+Blickrichtung des Fotos, die nicht dokumentiert ist. Die frueher im Dashboard
+gefuehrte Beschriftung "PV1 West / PV4 Ost" stammte aus dem Registervergleich
+und war nie bestaetigt — sie ist deshalb entfernt worden. Das Dashboard stellt
+die Module jetzt in der Reihenfolge der Dachflaeche dar (links im Bild = PV4).
+
+## Der Schattenwerfer ist der Giebel des gegenueberliegenden Hauses
+
+**Am 13.08.2026 vom Betreiber per Foto belegt.** Das gegenueberliegende Haus
+hat ein Satteldach mit Spitze, keine gerade horizontale Kante.
+
+Ein Giebel wirft einen **Lambda-foermigen Schatten**: die Spitze reicht am
+weitesten, die beiden Schenkel laufen schraeg nach aussen. Wandert dieser
+Schatten ueber die Modulreihe, trifft er sie nicht gleichmaessig von einer
+Seite. Ein Randmodul kann voll in der Sonne stehen, waehrend der direkte
+Nachbar tief im Schatten liegt.
+
+Zwei Messungen, die das belegen:
+
+**13.08., Sonnenazimut 165,4 Grad, Elevation 52,1 Grad** — die Spitze steht
+ueber PV2, beide Randmodule liegen ausserhalb der Schenkel:
+
+| Strang | Position | Leistung | Spannung |
+|---|---|---|---|
+| PV1 | ganz rechts | 403 W | 29,1 V |
+| PV2 | daneben | **35,5 W** | **33,5 V** |
+| PV3 | daneben | 260 W | 31,6 V |
+| PV4 | ganz links | 441 W | — |
+
+**11.08. um 14:40** — der Schatten ist weitergewandert und breiter geworden,
+ein Schenkel erfasst die linke Seite: PV1 100 %, PV2 99 %, PV3 65 %, PV4 14 %.
+
+**Eine einzige Geometrie erklaert beide Bilder.** Eine frueher notierte
+Vermutung, es muesse mehrere unabhaengige Schattenwerfer geben, ist damit
+gegenstandslos.
+
+PV2 zeigt dabei die Doppelsignatur eines verschatteten Strangs lehrbuchmaessig:
+**hoechste Spannung bei niedrigstem Strom**. Die Zelltemperatur von PV2 steht
+folgerichtig auf `unknown` statt auf einer erfundenen Zahl, weil bei 1,06 A die
+Untergrenze von 5 A greift.
+
+### Warum das fuer die Ausbauentscheidung zaehlt
+
+Eine feste Giebelgeometrie ist ueber den **Sonnenazimut** sauber beschreibbar
+und damit ueber die Jahreszeiten extrapolierbar: das Hindernis steht fest im
+Raum, nur der Sonnenstand wandert. Im Winter steht die Sonne tiefer, der
+Schatten reicht weiter. Genau dafuer ist die Azimut-Indizierung des Profils in
+[`VERSCHATTUNG-PROFIL.md`](VERSCHATTUNG-PROFIL.md) die richtige Wahl — und
+genau deshalb ist ein Profil **je Modul** noetig: die Gesamtkurve der Anlage
+verdeckt, dass zu jedem Zeitpunkt ein anderes Modul betroffen ist.
+
+---
+
 # Strang 4: was gemessen ist und was geschaetzt
 
 Getrennter Abschnitt, weil hier zum ersten Mal Entities entstehen, die **keine

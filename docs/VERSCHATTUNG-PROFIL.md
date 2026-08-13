@@ -1,0 +1,191 @@
+# Verschattungsprofil je Strang nach Sonnenazimut
+
+Grundlage der Tagesansicht im Dashboard `pv-module`, View **Verschattung**.
+
+**Stand 13.08.2026. Das Profil ist vorlaeufig.** Es ruht auf einem
+vollstaendigen Messtag und einem halben. Es ist ein Anfang, keine gesicherte
+Aussage — und im Dashboard ist es als solches gekennzeichnet.
+
+## Warum nach Azimut und nicht nach Uhrzeit
+
+Ein Schattenwerfer steht fest im Raum. Ueber den **Sonnenazimut** bleibt das
+Profil deshalb gueltig, waehrend sich die zugehoerigen Uhrzeiten ueber die
+Wochen verschieben. Dieselben Fenster liegen am 13.08. und am 15.09. rund eine
+halbe Stunde auseinander:
+
+| Strang | Fenster (Azimut) | am 13.08. | am 15.09. |
+|---|---|---|---|
+| PV1 | 135–155 Grad | 11:31–12:29 | 10:57–12:07 |
+| PV2 | 150–175 Grad | 12:16–13:21 | 11:50–13:08 |
+| PV3 | 170–205 Grad | 13:08–14:37 | 12:53–14:40 |
+| PV4 | 200–225 Grad | 14:24–15:36 | 14:24–15:49 |
+
+**Gespeichert werden deshalb Azimutgrenzen, keine Uhrzeiten.** Die Uhrzeiten
+rechnet die Dashboard-Karte fuer den jeweils laufenden Tag aus — mit derselben
+NOAA-Formel, die auch `custom_components/pv_lernprognose/sonne.py` benutzt.
+
+## Datengrundlage
+
+| Quelle | Zeitraum | brauchbare Punkte |
+|---|---|---|
+| `tools/rohdaten/pv4_tag.jsonl` | 12.08., 09:02–19:09 | 1208 |
+| Recorder-5-Minuten-Statistik | 12.08. abends bis 13.08. 12:50 | 137 |
+
+Zusammen **1345 Punkte an zwei Kalendertagen**. Der 08.08. ist wegen des
+Drosselungstests (PV sechs Stunden konstant 798 W) ausgeschlossen; er faellt
+ohnehin aus der 5-Minuten-Retention des Recorders.
+
+**Die Abdeckung ist ungleich verteilt** — das ist der wichtigste Vorbehalt:
+
+- Azimut **95–160 Grad**: 14 Faecher, **zwei Tage**. Die Fenster von PV1 und
+  PV2 sind damit an zwei unabhaengigen Tagen reproduziert.
+- Azimut **165–280 Grad**: 23 Faecher, **nur der 12.08.** Die Fenster von PV3
+  und PV4 ruhen auf einem einzigen Tag.
+
+## Verfahren
+
+1. Je Messpunkt Sonnenhoehe und -azimut aus Zeit und Standort (51,7619 N /
+   7,8766 O) nach NOAA rechnen. Der Port ist gegen `sun.sun` geprueft und
+   weicht um 0,3 Grad Azimut ab.
+2. Punkte verwerfen mit Gesamtleistung unter 50 W oder Sonnenhoehe unter
+   10 Grad. Bei flacher Sonne dominieren Horizont und Einfallswinkel, das
+   Verhaeltnis wird Rauschen.
+3. Je Strang den **Leistungsanteil** bilden: `P_i / Median(die uebrigen drei)`.
+4. Faecher von 5 Grad Breite, je Fach und Strang der **Median**.
+5. Faecher mit weniger als 5 Punkten werden nicht veroeffentlicht.
+
+### Der Bezug bricht zusammen, wenn zwei Straenge zugleich tief liegen
+
+Der Leistungsanteil ist ein **relatives** Mass. Liegen zwei Straenge
+gleichzeitig im Schatten, verschiebt sich der Median der Vergleichsgruppe und
+die Zahlen werden unbrauchbar — im Fach 245–250 Grad bis zu einem negativen
+Anteil fuer PV4 und 4,5 fuer PV2.
+
+Solche Punkte werden erkannt (zweitkleinster Strang unter 25 % des groessten)
+und verworfen; ein Fach, in dem mehr als die Haelfte der Punkte so ausfaellt,
+wird ganz verworfen. **Das Fach 245–250 Grad ist auf diesem Weg entfallen** und
+erscheint im Dashboard als Luecke, nicht als Verschattung.
+
+Werte **ueber 100 %** bedeuten nur, dass die *Nachbarn* verschattet sind. Fuer
+die Darstellung sind sie auf 100 % gedeckelt.
+
+## Ergebnis
+
+Anteil je Fach, gedeckelt auf 100 %. `--` heisst verworfen.
+
+| Azimut | PV1 | PV2 | PV3 | PV4 |
+|---|---|---|---|---|
+| 130 | 96 | 99 | 100 | 100 |
+| 135 | **57** | 99 | 100 | 100 |
+| 140 | **18** | 98 | 100 | 100 |
+| 145 | **58** | 62 | 100 | 100 |
+| 150 | **59** | **35** | 100 | 100 |
+| 155 | 91 | **12** | 100 | 100 |
+| 160 | 100 | **13** | 85 | 100 |
+| 165 | 100 | **17** | 66 | 100 |
+| 170 | 100 | **49** | **52** | 100 |
+| 175 | 100 | 66 | **24** | 100 |
+| 180 | 100 | 67 | **23** | 100 |
+| 185 | 100 | 82 | **24** | 100 |
+| 190 | 100 | 100 | **38** | 76 |
+| 195 | 100 | 100 | **34** | 69 |
+| 200 | 100 | 100 | **57** | **29** |
+| 205 | 100 | 100 | 67 | **21** |
+| 210 | 100 | 100 | 81 | **22** |
+| 215 | 99 | 100 | 100 | **25** |
+| 220 | 99 | 100 | 100 | **46** |
+| 225 | 98 | 100 | 100 | 70 |
+| 245 | -- | -- | -- | -- |
+| 250 | 100 | 95 | 100 | **51** |
+| 255 | 100 | 97 | 100 | 65 |
+| 275 | **36** | 69 | 100 | 100 |
+
+Schwellen wie bei den Verschattungssensoren: **unter 60 % verschattet, erst
+ueber 70 % wieder frei.**
+
+### Fenster je Strang
+
+| Strang | Fenster | tiefster Wert | Tage |
+|---|---|---|---|
+| PV1 | 135–155 Grad | 18 % | **2** |
+| PV1 | 275–280 Grad | 36 % | 1, flache Sonne — unsicher |
+| PV2 | 150–175 Grad | 12 % | **2** (bis 160 Grad) |
+| PV3 | 170–205 Grad | 23 % | 1 |
+| PV4 | 200–225 Grad | 21 % | 1 |
+| PV4 | 250–255 Grad | 51 % | 1, nahe der verworfenen Zone — unsicher |
+
+## Die Ursache ist bekannt: der Giebel gegenueber
+
+Per Foto belegt, siehe [`DIAGNOSE.md`](DIAGNOSE.md): das gegenueberliegende
+Haus hat ein **Satteldach mit Spitze**. Der Lambda-foermige Schatten wandert
+ueber die Reihe, und weil seine Kanten schraeg stehen, trifft er die vier
+Straenge **nacheinander** statt gleichzeitig.
+
+Genau das zeigt die Tabelle: ein zusammenhaengender Einbruch je Strang, aber
+in modulabhaengig verschobenen Azimutbereichen —
+
+```
+PV1  135-155        (rechts, zuerst)
+PV2       150-175
+PV3            170-205
+PV4                 200-225   (links, zuletzt)
+```
+
+Die Live-Messung des Betreibers bei Azimut 165,4 Grad (PV2 9 %, PV3 rund 60 %,
+PV1 und PV4 voll) trifft das Fach 165 Grad dieser Tabelle (PV2 17 %, PV3 66 %,
+PV1 und PV4 100 %) — **unabhaengige Bestaetigung an einem anderen Tag.** Dass
+dabei die Mitte im Schatten liegt und beide Raender frei sind, ist kein
+Widerspruch zum Wandern, sondern eine Momentaufnahme davon.
+
+### Zu den zwei Nebenfenstern
+
+Das Verfahren kann mehrere getrennte Fenster je Strang abbilden, und es meldet
+zwei: PV1 bei 275–280 Grad und PV4 bei 250–255 Grad. **Beide sind vermutlich
+Artefakte, keine zweite Schattenquelle.**
+
+- PV1 bei 275–280 Grad liegt kurz vor Sonnenuntergang bei rund 8 Grad
+  Sonnenhoehe. Dort dominieren Horizont und Einfallswinkel.
+- PV4 bei 250–255 Grad grenzt unmittelbar an das Fach 245 Grad, das wegen
+  zusammengebrochenen Bezugs ganz verworfen wurde.
+
+Mit der bekannten Giebelgeometrie ist **ein** zusammenhaengendes Fenster je
+Strang die Erwartung. Die Faehigkeit, mehrere abzubilden, bleibt im Verfahren —
+ausschliessen laesst sich ein weiteres Hindernis nicht, es ist nur nicht mehr
+noetig, um die Messungen zu erklaeren.
+
+### Warum das fuer die Ausbauentscheidung zaehlt
+
+Eine feste Giebelgeometrie ist ueber den Azimut **extrapolierbar**. Im Winter
+steht die Sonne tiefer, der Schatten reicht weiter — das Profil sagt vorher,
+welche Module wann betroffen sind, ohne dass ein ganzes Jahr gemessen werden
+muss. Das ist der eigentliche Wert der Azimut-Indizierung.
+
+Der Vorbehalt bleibt: die *Uhrzeit*-Verschiebung faengt der Azimutbezug
+vollstaendig auf, die groessere **Schattenlaenge** bei tieferer Sonne nicht.
+Dafuer braeuchte es die Giebelhoehe und den Abstand, beides ist nicht gemessen.
+
+## Was fehlt
+
+- **Jahresgang.** Zwei Tage im August. Wie sich die Fenster im Oktober
+  verschieben, wenn die Sonne flacher steht und dieselben Objekte laenger
+  werfende Schatten haben, ist damit nicht bestimmt. Der Azimutbezug faengt die
+  *Uhrzeit*-Verschiebung auf, nicht die Aenderung der Schattenlaenge.
+- **Bedeckte Tage.** Beide Messtage waren ueberwiegend klar. Bei diffusem Licht
+  verschwindet der gerichtete Schatten und das Profil ueberschaetzt.
+- **Der Lernstand steht auf `0 von 4 eingeschwungen`.** Dieses Profil kommt aus
+  der Historie, nicht aus dem eingeschwungenen Schaetzer der Lernprognose.
+  `sensor.pv_lernen_tagesform` steht auf 1,0 und ist bis auf Weiteres ohne
+  Aussage; ausserdem ist sie eine Form fuer die **Gesamtanlage** und kann
+  grundsaetzlich nicht sagen, welches Modul betroffen ist.
+
+## Reproduktion
+
+Die Auswertung ist ein eigenstaendiges Skript ohne Abhaengigkeiten:
+
+```
+node tools/verschattungsprofil.js
+```
+
+Es liest `tools/rohdaten/pv4_tag.jsonl` und schreibt die Tabelle nach stdout.
+Die Recorder-Haelfte laesst sich nicht reproduzieren — die 5-Minuten-Statistik
+verfaellt nach rund zehn Tagen.
