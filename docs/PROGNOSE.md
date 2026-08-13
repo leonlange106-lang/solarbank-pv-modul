@@ -458,3 +458,413 @@ als vier Tage zur Verfügung stehen:
 | `tools/prognose_daten_5min.json` | 5-Minuten-Werte SOC und PV (09.–12.08.), Forecast.Solar-Rohhistorie |
 
 Aufruf: `python tools/backtest_prognose.py` (vollständig) oder `--kurz`.
+
+---
+
+# Teil II: Die lernende Architektur
+
+Stand: 13.08.2026. Teil I oben ist die Fehleranalyse des alten Modells und
+bleibt unverändert stehen — er ist die Begründung für alles, was hier folgt.
+
+Die Vorgabe des Betreibers lautet:
+
+> „Bitte so bauen dass es sich immer dynamisch auf neue Lastmuster und
+> Sonnenmuster/Wettermuster anpassen kann. Niemals irgendwas fix festlegen."
+
+und ergänzend:
+
+> „die physikalischen kennwerte sollten aber immer auch auf messwerte
+> referenzieren. 5,1kwh bspw. auf die kapazität welche per tcp ausgelesen wird
+> […] damit sofern aufgestockt wird dies sich dynamisch erweitert."
+
+Umgesetzt in der Integration `custom_components/pv_lernprognose`.
+
+## 10. Warum eine eigene Integration und nicht pyscript
+
+Beides wäre gegangen, pyscript ist installiert. Ausschlaggebend waren vier
+Punkte:
+
+- **Persistenz.** Der Lernstand muss Neustarts überleben.
+  `homeassistant.helpers.storage.Store` schreibt versioniert und atomar und
+  wird beim Herunterfahren von Home Assistant selbst noch geleert. In pyscript
+  müsste man Dateien von Hand schreiben — ein halb geschriebener Lernstand ist
+  schlimmer als keiner.
+- **Kaltstart aus der Langzeitstatistik.** Das braucht den Recorder-Executor
+  (`get_instance(hass).async_add_executor_job`). Aus pyscript heraus blockiert
+  man damit leicht den Event-Loop.
+- **Sichtbarkeit.** Die gelernten Größen sollen Entities mit stabiler
+  `unique_id` sein, damit die Langzeitstatistik sie behält und man ihnen über
+  Monate beim Lernen zusehen kann. pyscript-Entities haben keine `unique_id`
+  und stehen nicht in der Entity-Registry.
+- **Muster im Haus.** `custom_components/solarbank_pv` führt bereits
+  Coordinator, Entity-Beschreibungen und Attributkonventionen vor.
+
+Die Integration ist **rein lesend**. Kein Modbus-Schreibzugriff, kein
+Service-Call, keine Zustandsänderung an fremden Entities.
+
+## 11. Das neue Modell in einer Zeile
+
+Statt `cos^EXPONENT` um einen Spitzenzeitpunkt:
+
+```
+P(t) = Systemgain · POA_klar(t) · Tagesform(Azimut(t)) · Trübung(t)
+```
+
+| Faktor | Herkunft | Was er einfängt |
+|---|---|---|
+| `POA_klar(t)` | reine Geometrie, keine freien Parameter | Sonnenstand, Jahreszeit, Modulebene |
+| `Systemgain` | **gelernt** | Modulfläche, Systemwirkungsgrad, bifazialer Mehrertrag |
+| `Tagesform` | **gelernt je Sonnenazimut** | die Verschattung aus Abschnitt 4 |
+| `Trübung` | tagesaktuell aus Messung und Forecast.Solar | Bewölkung |
+
+Der entscheidende Unterschied zum alten Modell: **die Verschattung steckt jetzt
+in der Tagesform, nicht in der Trübung.** Damit misst die Trübung endlich das,
+wofür `k` gedacht war. Abschnitt 4 hatte gezeigt, dass `k` die
+Nachmittagsdelle als Bewölkung las und auf den ganzen Resttag hochrechnete —
+dieser Fehler ist konstruktiv ausgeschlossen.
+
+Tag und Nacht sind kein getrennter Zweig mehr, sondern ein durchgehender Lauf
+über 24 Stunden. Nachts ist `POA_klar` null, damit ist die Erzeugung null, und
+die Bilanz entlädt von selbst.
+
+## 12. Die gelernten Größen
+
+Alle vier folgen demselben Muster: **zweistufiger Median** (erst je Tag
+verdichten, dann über die Tage), **MAD-Ausreißerfilter** vor der zweiten Stufe,
+**Rezenzgewichtung** mit 14 Tagen Halbwertszeit.
+
+Zwei Stufen, weil beide Fehlerarten vorkommen: einzelne verrückte Messpunkte
+innerhalb eines Tages (der Reglertest um 14 Uhr) und ganze verrückte Tage (der
+Drosselungstest am 08.08.). Ein einstufiger Median über alle Punkte würde einen
+langen schlechten Tag durchlassen, weil er viele Punkte beisteuert.
+
+| Größe | Fenster | Index | Robustheit | Startwert | eingeschwungen ab |
+|---|---|---|---|---|---|
+| **Hauslastprofil** | 28 Tage | Stunde × (Werktag/Wochenende) | Median je Stunde und Tag, dann gewichteter Median über Tage nach MAD-Filter | Juli-Median aus Abschnitt 3 | 7 Tage je Stunde und Tagestyp |
+| **Pegel vs. Forecast.Solar** | 21 Tage | — | ein Wert je Tag, dann gewichteter Median nach MAD-Filter | 1,42 (Abschnitt 13) | 5 Tage |
+| **Tagesform** | 45 Tage | Sonnenazimut in 5°-Fächern | Median je Fach und Tag, dann gewichteter Median über Tage | 1,0 („keine Verschattung bekannt") | 4 Tage **und** 8 Proben je Fach |
+| **Systemgain** | 45 Tage | — | 0,90-Quantil über die belegten Azimutfächer | 2,06 W/(W/m²) | 8 belegte Fächer |
+| **Speicherwirkungsgrad** | 21 Tage | — | ein Wert je Tag, dann gewichteter Median nach MAD-Filter | 0,95 | 5 Tage |
+
+Jede Größe hat eine eigene Entity und meldet in ihren Attributen `gelernt`
+(true/false) und `stichprobe`. Solange `gelernt: false` steht, liefert sie den
+Startwert und sagt genau das.
+
+### Warum die Tagesform nach Azimut indiziert ist, nicht nach Uhrzeit
+
+Ein Baum oder Dachvorsprung steht fest im Raum. Er verschattet immer dann, wenn
+die Sonne in seiner Richtung steht — unabhängig vom Datum. Über Uhrzeit
+indiziert müsste die Kurve jeden Monat neu gelernt werden; über Azimut
+indiziert wandert sie von selbst mit dem Sonnenlauf durch die Jahreszeiten mit.
+Genau das war gefordert.
+
+Die verbleibende Abhängigkeit ist die **Sonnenhöhe**: dasselbe Hindernis
+verschattet bei flacher Wintersonne stärker als bei hoher Sommersonne. Das
+fängt die Rezenzgewichtung ab — der Schätzer folgt der Jahreszeit mit etwa zwei
+bis drei Wochen Nachlauf. Eine zweite Indexachse über die Höhe wäre
+physikalisch sauberer, würde die Stichprobe je Fach aber so ausdünnen, dass
+nichts mehr einschwingt. **Das ist eine bewusste Abwägung, keine Auslassung.**
+
+### Wie Ausreißer aussortiert werden, ohne dass jemand sie benennt
+
+Der 08.08. (PV sechs Stunden konstant 798 W wegen Drosselungstest) fällt durch
+drei unabhängige Siebe:
+
+1. **SOC am oberen Anschlag** (`smax − 1 pp`). Dann drosselt die
+   Nulleinspeisung die PV auf die Hauslast, und die Messung zeigt nicht mehr
+   das Dargebot.
+2. **Leistung steht still, während die Geometrie sich bewegt.** Über 30 Minuten
+   entrendete Reststreuung unter 1 % bei gleichzeitig über 10 % Änderung der
+   Klarhimmelerwartung. Kein Naturvorgang sieht so aus. Das ist genau das
+   Muster des 08.08. — erkannt am Muster, nicht am Datum.
+3. **MAD-Filter über die Tage.** Ein Tag, der um mehr als 3,5 modifizierte
+   z-Werte abweicht, fällt aus der zweiten Medianstufe heraus.
+
+Für die Tagesform kommt ein viertes Sieb hinzu: **Klarheit.** Ein Messpunkt
+geht nur ein, wenn die Abweichung der PV-Leistung von ihrer eigenen
+Ausgleichsgeraden über 15 Minuten unter 5 % liegt. Eine ungestörte
+Klarhimmelkurve ist über eine Viertelstunde nahezu linear; Wolken erzeugen
+sofort mehrere Prozent Reststreuung. Die Schwelle ist an der gemessenen
+Streuung geeicht: `sensor.*_pv_signal_streuung_5min` lag bei klarer Sicht bei
+20–35 W auf 1300–1400 W Signal, also 1,5–2,7 %.
+
+### Wie das Zensurproblem beim Pegel gelöst ist
+
+Auf allen vier Backtest-Tagen wurde der Speicher voll, und danach ist der
+gemessene Ertrag nur noch eine Untergrenze. Ein Verhältnis aus Tagesenergien
+wäre dadurch systematisch zu klein.
+
+Der Schätzer vergleicht deshalb zwei **Trübungsindizes** desselben Tages, wobei
+beide Klarhimmelgrößen in rein geometrischen Einheiten geführt werden (POA mal
+Tagesform, ohne Systemgain — so kürzt sich der Gain exakt heraus):
+
+```
+Pegel = E_gemessen · G_gesamt / (G_offen · E_prognose)
+```
+
+`G_offen` ist die geometrische Erwartung nur über die **unzensierten**
+Abschnitte, `G_gesamt` über den ganzen Tag. Ein Tag, von dem weniger als 35 %
+unzensiert beobachtet wurde, fällt ganz heraus — sonst misst man den Vormittag,
+der bei dieser Anlage systematisch besser läuft als der verschattete
+Nachmittag.
+
+### Speicherwirkungsgrad
+
+Über einen Tag gilt mit den kumulierten Zählern des Geräts
+
+```
+ΔSOC/100 · Kapazität = η · E_laden − E_entladen / η
+```
+
+nach η aufgelöst: `η = (d + √(d² + 4ab)) / (2a)`. Tage mit unter 1 kWh
+Ladeumsatz zählen nicht, weil dann die SOC-Auflösung (1 pp = 51 Wh) dominiert.
+
+Bemerkenswert: das Ergebnis hängt an der **gelesenen** Kapazität. Wird der
+Speicher aufgerüstet, wächst die Kapazität mit, und der Wirkungsgrad bleibt
+richtig. Wäre die Kapazität fest, würde ein Umbau sich als scheinbare
+Wirkungsgradänderung tarnen.
+
+## 13. Anlagenkennwerte kommen aus dem Gerät
+
+| Größe | Quelle | Rückfall | Erwartungsbereich |
+|---|---|---|---|
+| Speicherkapazität | `sensor.anker_solix_..._akkukapazitat` | `sensor.solarbank_dc_straenge_441_pv_nennkapazitaet_modbus` (Reg. 10250) | 1–100 kWh |
+| AC-Ausgangsgrenze | `sensor.pv_ac_ausgangslimit` (Reg. 10038) | — | 100–20000 W |
+| max. Ladeleistung | `sensor.pv_maximale_ladeleistung` (Reg. 10036) | — | 200–20000 W |
+| Ladeobergrenze | `number.anker_solix_..._ladeobergrenze` (Reg. 60000) | `..._pv_ladeobergrenze_modbus` | 50–100 % |
+| SOC-Untergrenze | `input_number.nulleinspeisung_soc_untergrenze` | — | 0–60 % |
+
+Die SOC-Untergrenze ist eine **Betreibereinstellung, kein Messwert** — sie darf
+gesetzt bleiben.
+
+Drei Sicherungen dagegen, dass ein Ausfall der Quelle die Prognose kippt:
+
+1. **Quellenkette.** Fällt die offizielle Integration aus, greift der eigene
+   Modbus-Sensor.
+2. **Plausibilitätsbereich.** Ein Wert außerhalb gilt als ungelesen. Das fängt
+   den Fall ab, der bis zum 13.08.2026 real bestand: Register 10250 wurde als
+   u16 statt u32 dekodiert und lieferte dauerhaft 0,0 (behoben in Commit
+   0c8ddfa). **Ältere Historie dieses Sensors ist wertlos.**
+3. **Letzter guter Wert.** Ist gerade nichts lesbar, wird der zuletzt plausible
+   Wert gehalten — und das im Attribut ausgewiesen (`zustand: gelesen |
+   gehalten | ersatzwert`).
+
+Der wichtigste Fall ist die **AC-Ausgangsgrenze**. Nach Einbau der
+Wieland-Dose sind 2500 W statt 800 W geplant, umgestellt wird in der Anker-App.
+Ohne diese Anbindung würde die Prognose danach mit einer Grenze rechnen, die es
+nicht mehr gibt — und niemand würde es merken, weil die Zahl plausibel
+aussieht. Die Vorwärtssimulation modelliert die Grenze korrekt: das System
+liefert höchstens `AC-Grenze` ins Haus, der Rest kommt aus dem Netz, und was
+die PV darüber hinaus erzeugt, lädt den Speicher.
+
+**Physikalisch fest bleiben nur noch die Modul-Datenblattwerte** (Vmp 33,18 V,
+Voc 39,90 V, Temperaturkoeffizient 0,0025 1/K). Sie stehen auf keinem Register
+und ändern sich nur beim Modultausch. Dazu kommen die Naturkonstanten des
+Klarhimmelmodells (Solarkonstante, Albedo) — deren Absolutwert ist unkritisch,
+weil der gelernte Systemgain sie wegnormiert.
+
+Neigung und Azimut der Modulebene (20°/188°) sind Konfigurationswerte im
+Config-Flow. Ein Fehler darin ist unkritisch: die gelernte Tagesform ist das
+Verhältnis von Messung zu Geometrie und schluckt jede systematische Schieflage
+mit.
+
+## 14. Die Meta-Parameter, die ich setzen musste
+
+Das sind Parameter des **Lernverfahrens**, nicht der Anlage. Ohne sie gibt es
+kein Verfahren. Sie stehen gesammelt und einzeln begründet in Abschnitt A von
+`custom_components/pv_lernprognose/const.py`.
+
+| Parameter | Wert | Begründung |
+|---|---|---|
+| Abtastung | 60 s | schnellster Quellsensor liefert alle 30 s; schneller bringt keine neue Information |
+| Fenster Hauslast | 28 Tage | vier volle Wochen, jeder Wochentag gleich oft |
+| Fenster Pegel | 21 Tage | kurz genug für die saisonale Drift, lang genug für einen Median |
+| Fenster Tagesform | 45 Tage | ein Azimutfach wird pro Tag nur wenige Minuten befüllt und nur bei klarer Sicht |
+| Fenster Wirkungsgrad | 21 Tage | je Tag genau ein Wert |
+| Rezenzhalbwertszeit | 14 Tage | lässt die Schätzer der Jahreszeit folgen, statt über das Fenster zu mitteln |
+| MAD-Schwelle | 3,5 | Standardwert nach Iglewicz/Hoaglin; verwirft rund 0,05 % gutartiger Werte |
+| Klarheitsschwelle | 5 % | an der gemessenen Streuung geeicht (1,5–2,7 % bei klarer Sicht) |
+| Azimut-Fachbreite | 5° | ≈ 20 min Sonnenlauf — fein genug für die gemessene Schattenkante, grob genug für die Stichprobe |
+| Gain-Quantil | 0,90 | markiert das unverschattete Plateau; nicht 1,00, damit ein Ausreißerfach die Normierung nicht verschiebt |
+| Zensur: Stillstandsfenster | 30 min / 1 % / 10 % | Mustererkennung des Drosselungstests |
+| **Trübungs-Halbwertszeit** | **120 min** | **schwächst belegt, siehe unten** |
+
+### Die Trübungs-Halbwertszeit ist der schwache Punkt
+
+Sie steuert, wie schnell die Live-Messung zugunsten der Wetterprognose an
+Gewicht verliert. Der Sweep über die vier Tage vom 09.–12.08. ist **monoton und
+flach**:
+
+```
+τ [min]     15    30    45    60    90   120   180   240   360   ∞
+RMSE Bahn  7,48  7,20  7,01  6,87  6,69  6,59  6,48  6,43  6,37  6,29
+MAE  SOC   1,91  1,84  1,77  1,69  1,58  1,55  1,52  1,49  1,49  1,72
+```
+
+Länger ist auf **diesen** Daten immer besser. Trotzdem steht dort 120 und nicht
+∞: in der Stichprobe ist **kein einziger bedeckter Tag**. Was ein großes τ
+anrichtet — vormittags klar messen und daraus einen klaren Nachmittag
+hochrechnen, während eine Front hereinzieht — kann an diesen Daten gar nicht
+sichtbar werden. 120 Minuten liegt 0,3 pp über dem Sweep-Optimum und lässt die
+Wetterprognose ab etwa drei Stunden Vorlauf übernehmen. **Sobald ein bedeckter
+Tag in der Historie liegt, gehört der Sweep wiederholt.**
+
+Das ist dieselbe Einschränkung, die Abschnitt 6 für `KMIN`/`KMAX` festgehalten
+hat, und sie ist nicht kleiner geworden.
+
+## 15. Was der Prüfstand zeigt
+
+`python tools/pruefe_lernprognose.py` fährt die reinen Rechenmodule der
+Integration gegen dieselben Daten wie Teil I. Home Assistant muss dafür nicht
+installiert sein.
+
+**Geometrie.** Sonnenauf- und -untergang sowie der astronomische Mittag stimmen
+auf 1,6 Minuten mit den Werten aus Abschnitt 1 überein.
+
+**Tagesform.** Der Schätzer findet die Verschattung wieder, ohne dass ihm
+jemand sagt, wo sie liegt:
+
+```
+Zeit    Azimut  gelernt  Abschnitt 4b  Diff
+11:00    125,3   0,99     0,97          +0,02
+11:30    134,1   0,94     0,90          +0,04
+12:00    143,8   0,79     0,84          -0,05
+12:30    154,5   0,70     0,71          -0,01
+13:00    166,1   0,63     0,64          -0,01
+13:30    178,2   0,61     0,65          -0,04
+14:00    190,4   0,63     0,62          +0,01
+14:30    202,2   0,60     0,60           0,00
+15:00    213,2   0,63     0,62          +0,01
+15:30    223,2   0,77     0,77           0,00
+16:00    232,3   0,87     0,87           0,00
+16:30    240,5   0,78     0,93          -0,15
+```
+
+Mittlere absolute Abweichung **0,029**. Der letzte Wert (16:30) ist das
+äußerste belegte Fach mit der dünnsten Stichprobe.
+
+**Unabhängige Gegenprobe.** Mit dem gelernten Systemgain von 2,065 W/(W/m²)
+sagt das Klarhimmelmodell einschließlich der gelernten Verschattung für einen
+klaren Augusttag **11,96 kWh** vorher. Abschnitt 2 hatte auf völlig anderem Weg
+— Eichung des Systemwirkungsgrads am unverschatteten Vormittag — **12,0 kWh**
+gerechnet. Die beiden Rechnungen wissen nichts voneinander.
+
+**Prognosefehler**, 31 Läufe (4 Tage × stündliche Startzeitpunkte):
+
+| Konfiguration | Bias | MAE | Zeit | RMSE |
+|---|---|---|---|---|
+| alt: EXP 2,0 · 0,6/1,6 · 20 min · Profil vorbelegt | −28,6 | 28,64 | 95 | 17,2 |
+| empfohlen aus Abschnitt 7 | −7,7 | 7,72 | 43 | 7,3 |
+| **Lernprognose** | **−4,4** | **4,41** | **47** | **6,6** |
+
+Zwei Vorbehalte, die diese Zahl kleiner machen als sie aussieht:
+
+- **In-sample.** Tagesform und Pegel wurden aus denselben vier Tagen gelernt,
+  gegen die hier geprüft wird. Das ist unvermeidlich, solange der Recorder
+  nicht weiter zurückreicht, aber es ist kein unabhängiger Test.
+- **Zensiert.** Der Maximal-SOC ist auf allen vier Tagen zensiert — der
+  Speicher wurde jedes Mal voll. Aussagekräftig ist der RMSE der SOC-Bahn, und
+  dort ist der Vorsprung mit 6,6 gegen 7,3 pp bescheiden.
+
+Ehrlich ist: **der große Gewinn liegt nicht in diesen 0,7 Prozentpunkten,
+sondern darin, dass keiner der Werte mehr von Hand gesetzt ist.** Das alte
+Modell erreichte seine 7,3 pp mit vier auf genau diese vier Tage getunten
+Parametern. Das neue erreicht 6,6 pp ohne einen einzigen davon — und passt
+sich an, wenn sich die Anlage, der Haushalt oder die Jahreszeit ändert.
+
+Der Restfehler steckt weiterhin dort, wo ihn Abschnitt 7 verortet hat: die
+Streuung des Forecast.Solar-Bias von 1,26 bis 1,66 lässt sich mit einem
+einzigen Faktor nicht auffangen. Der Unterschied ist, dass der Faktor jetzt
+mitläuft statt festzustehen.
+
+## 16. Was ausgerollt ist und was vorliegt
+
+**Ausgerollt und laufend** (rein additiv, keine bestehende Entity berührt):
+
+| Entity | Inhalt |
+|---|---|
+| `sensor.pv_lernen_hauslast` | gelernte Hauslast der laufenden Stunde, Profil in den Attributen |
+| `sensor.pv_lernen_pegelfaktor` | Pegel gegen Forecast.Solar |
+| `sensor.pv_lernen_tagesform` | gelernte Tagesform am aktuellen Sonnenazimut, Kurve in den Attributen |
+| `sensor.pv_lernen_speicherwirkungsgrad` | η aus der Tagesenergiebilanz |
+| `sensor.pv_lernen_systemgain` | wirksame Anlagenleistung je Einstrahlung |
+| `sensor.pv_lernen_truebung` | Bewölkungsindex — der ehemalige Faktor `k`, ohne Schattenfehler |
+| `sensor.pv_lernen_klarhimmelleistung` | Erwartung bei klarem Himmel, mit Verschattung |
+| `sensor.pv_lernen_lernstand` | Sammelanzeige „n von 4 eingeschwungen" |
+| `sensor.pv_lernen_anlagenkennwerte` | was aus dem Gerät gelesen, was gehalten, was Ersatzwert ist |
+| `sensor.pv_lernen_speicher_prognose` | die neue Prognose, gleicher Wortlaut wie die alte |
+| `sensor.pv_lernen_ziel_erreicht_um` | Zielzeitpunkt aus voller Simulation statt linearer Hochrechnung |
+
+**Vorgelegt, nicht scharf geschaltet.** Die beiden bestehenden Sensoren
+
+- `sensor.nulleinspeisung_speicher_prognose`
+- `sensor.prioritaetsladung_ziel_erreicht_um`
+
+sind **unverändert**. Beide sind Template-Helfer im UI-Speicher
+(`.storage`, Entry-IDs `01KZM75V9053HEE4E2S46HMEB7` und
+`01KZNPG0FCEH3YQE1B3Z2AH2XT`). Der Umbau bestünde darin, ihre `state`-Vorlage
+durch je eine Zeile zu ersetzen:
+
+```jinja
+{{ states('sensor.pv_lernen_speicher_prognose') }}
+```
+
+```jinja
+{{ states('sensor.pv_lernen_ziel_erreicht_um') }}
+```
+
+Entity-IDs, `device_class: timestamp` und alle Dashboardbindungen blieben
+dabei erhalten. **Empfehlung: erst umstellen, wenn
+`sensor.pv_lernen_lernstand` auf „4 von 4 eingeschwungen" steht** — das dauert
+je nach Wetter zwischen fünf Tagen (Pegel, Wirkungsgrad) und vier Wochen
+(Hauslastprofil je Stunde und Tagestyp). Bis dahin laufen beide Prognosen
+nebeneinander und lassen sich vergleichen. Genau dafür sind die neuen Sensoren
+additiv angelegt.
+
+**Recorder.** Die `exclude`-Liste in `configuration.yaml` wurde **ergänzt**, nie
+überschrieben: `sensor.pv_lernen_lernstand`, `..._anlagenkennwerte` und
+`..._speicher_prognose` führen große Attribute im Minutentakt. Die numerischen
+Lernsensoren bleiben bewusst drin — ihr Verlauf über Wochen ist der eigentliche
+Nutzen.
+
+**Nicht angefasst.** Nulleinspeisung (`nulleinspeisung_*`, `betriebsart_*`,
+`pv_*`-Automationen, beide Dashboards, `input_boolean.nulleinspeisung_aktiv`),
+kein Modbus-Schreibzugriff, Register 10071 unberührt.
+
+## 17. Was das Verfahren nicht kann
+
+- **Kein Temperaturmodell.** Die Modultemperatur (gemessen bis 68 °C) senkt den
+  Wirkungsgrad um rund 0,35 %/K. Der Effekt ist weitgehend kollinear zur
+  Einstrahlung und landet damit in der Tagesform — was systematisch richtig
+  ist, aber an einem ungewöhnlich kühlen klaren Tag zu einer Unterschätzung
+  führt.
+- **Keine zweite Indexachse über die Sonnenhöhe.** Siehe Abschnitt 12. Die
+  Jahreszeitendrift der Verschattung wird über die Rezenzgewichtung
+  nachgeführt, mit zwei bis drei Wochen Nachlauf.
+- **Kein bedeckter Tag in der Eichstichprobe.** Trübungs-Halbwertszeit und
+  Klarheitsschwelle sind an klarem bis wechselhaftem Wetter geeicht.
+- **Kaltstart der Tagesform.** Hauslast wird beim ersten Start aus der
+  Langzeitstatistik vorbelegt (Stundenmittel, kein Median — als Notbehelf
+  gekennzeichnet). Für Tagesform, Pegel und Wirkungsgrad gibt es keinen
+  Bootstrap: sie brauchen Auflösung unterhalb der Stunde, die der Recorder nach
+  zehn Tagen nicht mehr hat. Sie starten mit den Startwerten aus Teil I und
+  weisen das aus.
+- **Standort.** Die Integration nimmt Breite und Länge aus der
+  Home-Assistant-Grundeinstellung (51,762° N, 7,877° O). Teil I rechnete mit
+  51,674° N, 7,815° O. Die Differenz von rund 10 km verschiebt den
+  Sonnenstand um deutlich unter einer Minute und ist für das Verfahren ohne
+  Belang — die gelernte Tagesform nimmt sie ohnehin mit auf.
+
+## 18. Dateien (Teil II)
+
+| Datei | Inhalt |
+|---|---|
+| `custom_components/pv_lernprognose/const.py` | Meta-Parameter (A), Physik (B), Quellen (C) — dreigeteilt und einzeln begründet |
+| `custom_components/pv_lernprognose/sonne.py` | Sonnenstand und Klarhimmel-POA, ohne jede empirische Größe |
+| `custom_components/pv_lernprognose/robust.py` | Median, MAD, gewichteter Median, entrendete Streuung |
+| `custom_components/pv_lernprognose/schaetzer.py` | die vier Schätzer plus Systemgain |
+| `custom_components/pv_lernprognose/kennwerte.py` | Anlagenkennwerte aus dem Gerät, mit Plausibilität und Halteverhalten |
+| `custom_components/pv_lernprognose/modell.py` | Vorwärtssimulation über 24 h |
+| `custom_components/pv_lernprognose/coordinator.py` | Abtastung, Klarheits- und Zensurerkennung, Persistenz |
+| `custom_components/pv_lernprognose/sensor.py` | die elf Entities |
+| `tools/pruefe_lernprognose.py` | Prüfstand gegen die Daten aus Teil I |
