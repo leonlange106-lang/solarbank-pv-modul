@@ -63,6 +63,8 @@ async def async_setup_entry(
         entities.append(CellTemperatureSensor(strings, data, prefix, label, v_key, i_key))
         entities.append(CurrentRatioSensor(strings, data, prefix, label, i_key))
 
+    entities.append(String4PowerSensor(strings, data))
+
     async_add_entities(entities)
 
 
@@ -283,4 +285,69 @@ class CurrentRatioSensor(StringDerivedEntity):
             "modbus_scale": 1,
             "deutung_sicher": True,
             "referenz": "Median der uebrigen Straenge",
+        }
+
+
+class String4PowerSensor(StringDerivedEntity):
+    """Leistung von Strang 4 als Differenz zur Gesamtleistung.
+
+    Strang 4 hat kein eigenes Register. Der Adressraum wurde vollstaendig
+    geprueft (Scan 0-65535, FC01-FC04); der letzte Kandidat 10205 erwies sich
+    als AC-Ausgangsstrom. Damit bleibt nur die Differenz.
+
+    Das ist keine Notloesung, sondern eine exakte Rechnung: 10002 ist die
+    Summe ueber alle vier Tracker, die drei uebrigen sind einzeln gemessen.
+    Der Fehler ist die Summe der Rundungsfehler der drei Einzelstraenge,
+    nicht ein Modellfehler. Ohne diesen Sensor blieben rund 25 Prozent der
+    Anlage unsichtbar - gemessen am 13.08.: 1270 W gesamt gegen 925 W aus
+    den drei bekannten Straengen.
+
+    Voraussetzung ist, dass 10002 in derselben Abfrage gelesen wird wie die
+    Strangregister; siehe den Kommentar an BLOCKS["strings"] in const.py.
+    """
+
+    _attr_native_unit_of_measurement = "W"
+    _attr_device_class = "power"
+    _attr_state_class = "measurement"
+    _attr_icon = "mdi:solar-panel"
+
+    def __init__(self, coordinator, data) -> None:
+        super().__init__(
+            coordinator, data, "pv4_power", display_name("Modul 4 Leistung")
+        )
+        self._clamped = False
+
+    @property
+    def native_value(self) -> float | None:
+        total = self._reg_value("pv_power_mb")
+        if total is None:
+            return None
+        parts = [self._reg_value(v_key) for _, _, v_key, _ in STRINGS]
+        amps = [self._reg_value(i_key) for _, _, _, i_key in STRINGS]
+        if any(p is None for p in parts) or any(a is None for a in amps):
+            return None
+
+        known = sum(v * i for v, i in zip(parts, amps))
+        rest = total - known
+
+        # Nachts sind alle Summanden null und die Differenz besteht nur aus
+        # Rundungsrauschen. Ein kleiner negativer Wert ist dann kein Defekt.
+        # Er wird auf null geklemmt, aber im Attribut kenntlich gemacht, damit
+        # eine dauerhaft negative Differenz als Hinweis auf einen Deutungs-
+        # fehler sichtbar bleibt statt stillschweigend verschwiegen zu werden.
+        self._clamped = rest < 0
+        return round(max(rest, 0.0), 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return {
+            "modbus_address": "10002 minus 10167..10172",
+            "modbus_function": 4,
+            "modbus_datatype": "berechnet",
+            "modbus_scale": 1,
+            # Die Rechnung ist sicher, die Zuordnung zu einem physischen Modul
+            # nicht: welches der vier Module Strang 4 ist, steht nicht fest.
+            "deutung_sicher": False,
+            "methode": "Gesamtleistung minus Summe der drei gemessenen Straenge",
+            "auf_null_geklemmt": self._clamped,
         }

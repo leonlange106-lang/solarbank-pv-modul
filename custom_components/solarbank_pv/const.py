@@ -122,7 +122,15 @@ class Block:
 
 BLOCKS: Final[dict[str, tuple[Block, ...]]] = {
     # 10144:32 deckt 10156 und 10167-10175 in EINER Anfrage ab.
-    "strings": (Block(10144, 32), Block(10205, 1)),
+    #
+    # 10002 wird hier ein zweites Mal gelesen, obwohl es auch in "mirror" steht.
+    # Grund: Strang 4 hat kein eigenes Register und wird als Differenz aus der
+    # Gesamtleistung und den drei gemessenen Straengen gebildet. Kaeme die
+    # Gesamtleistung aus der mirror-Gruppe, laegen beide Seiten der Subtraktion
+    # in verschiedenen Abfragezyklen - bei ziehenden Wolken entstuenden daraus
+    # Differenzen von mehreren hundert Watt aus reinem Zeitversatz. Eine
+    # zusaetzliche Anfrage je 30 s ist der Preis fuer Zeitgleichheit.
+    "strings": (Block(10144, 32), Block(10205, 1), Block(10002, 4)),
     "limits": (Block(10036, 2), Block(10038, 2)),
     "grid": (Block(10199, 1), Block(10202, 1), Block(10208, 32)),
     "clock": (Block(10060, 2, proven=False),),
