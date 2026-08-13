@@ -43,7 +43,9 @@ from .const import (
     CONF_NEIGUNG,
     DEFAULT_AZIMUT,
     DEFAULT_NEIGUNG,
-    FENSTER_HAUSLAST_TAGE,
+    BOOTSTRAP_MIN_STUNDEN,
+    BOOTSTRAP_RUECKLAUF_W,
+    BOOTSTRAP_TAGE_MAX,
     KLARHEIT_FENSTER_MIN,
     KLARHEIT_SCHWELLE,
     MIN_POA_W,
@@ -54,6 +56,8 @@ from .const import (
     QUELLE_FS_HEUTE_KWH,
     QUELLE_FS_MORGEN_KWH,
     QUELLE_FS_REST_KWH,
+    MIN_TAGE_HAUSLAST,
+    QUELLE_HAUSLAST_BOOTSTRAP,
     QUELLE_HAUSLAST_W,
     QUELLE_LADEENERGIE_KWH,
     QUELLE_PV_W,
@@ -131,6 +135,12 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "Kein Lernstand vorhanden. Alle Schaetzer starten mit ihrem "
                 "begruendeten Startwert und weisen das als gelernt=false aus."
             )
+
+        # Auch bei vorhandenem Lernstand nachziehen: eine Installation, die
+        # vor dem Startprofil eingerichtet wurde, soll es bekommen, ohne
+        # dass jemand den Lernstand loescht. Der Aufruf ist beschraenkt auf
+        # den Fall, dass noch keines da ist - er laeuft also genau einmal.
+        if not self.lernstand.hauslast.startprofil:
             await self._bootstrap_hauslast()
 
     async def async_speichern(self) -> None:
@@ -138,13 +148,24 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._zuletzt_gespeichert = dt_util.utcnow()
 
     async def _bootstrap_hauslast(self) -> None:
-        """Kaltstarthilfe: Stundenmittel der Hauslast aus der Langzeitstatistik.
+        """Startprofil aus der Zaehlerhistorie, vor der PV-Inbetriebnahme.
 
-        Bewusst als Notbehelf gekennzeichnet. Die Langzeitstatistik liefert
-        Stundenmittel, nicht Stundenmediane - ein Reglertest schlaegt darin
-        also durch. Solange zu wenige Tage vorliegen, gilt ohnehin der
-        Startwert; sobald genug eigene Tage da sind, verdraengen die
-        gemessenen Mediane die Bootstrap-Tage aus dem Fenster.
+        Der IR-Lesekopf am Zaehler misst die Netzleistung. Solange es weder
+        PV noch Speicher gab, IST das die Hauslast - direkt gemessen, ohne
+        Umweg ueber die Solarbank. Danach misst derselbe Sensor den Bezug
+        NACH Erzeugung und Speicher und ist als Hauslast wertlos.
+
+        Die Grenze wird nicht aus einem Datum genommen, sondern am
+        Vorzeichen bestimmt: die erste Stunde, in der die Leistung negativ
+        wird, beweist Rueckspeisung und damit eine laufende Anlage. Ab dort
+        wird hart abgeschnitten. Ein einkompiliertes Datum wuerde beim
+        naechsten Anlagenumbau stillschweigend falsch werden - diese
+        Erkennung nicht.
+
+        Das Ergebnis landet NICHT als Pseudo-Tage im gleitenden Fenster
+        (die Daten sind aelter als das Fenster und die Rezenzgewichtung
+        wuerde sie fast auf null druecken), sondern als eigenstaendiges
+        Startprofil je Tagestyp.
         """
         try:
             from homeassistant.components.recorder import get_instance
@@ -154,20 +175,13 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except ImportError:  # pragma: no cover
             return
 
-        quelle = None
-        for kandidat in QUELLE_HAUSLAST_W:
-            if self.hass.states.get(kandidat) is not None:
-                quelle = kandidat
-                break
-        if quelle is None:
-            return
-
+        quelle = QUELLE_HAUSLAST_BOOTSTRAP[0]
         ende = dt_util.utcnow()
-        start = ende - dt.timedelta(days=FENSTER_HAUSLAST_TAGE)
+        start = ende - dt.timedelta(days=BOOTSTRAP_TAGE_MAX)
         try:
             roh = await get_instance(self.hass).async_add_executor_job(
                 lambda: statistics_during_period(
-                    self.hass, start, ende, {quelle}, "hour", None, {"mean"}
+                    self.hass, start, ende, {quelle}, "hour", None, {"mean", "min"}
                 )
             )
         except Exception as exc:  # noqa: BLE001 - darf das Setup nie kippen
@@ -175,46 +189,102 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         reihen = roh.get(quelle) or []
+        if not reihen:
+            _LOGGER.info(
+                "Kein Startprofil: %s hat keine Langzeitstatistik. Es gelten "
+                "die einkompilierten Startwerte.", quelle,
+            )
+            return
+
         zeitzone = dt_util.get_time_zone(self.hass.config.time_zone)
-        gesammelt: dict[str, dict[str, float]] = {}
-        for eintrag in reihen:
-            mittel = eintrag.get("mean")
-            if mittel is None:
-                continue
+
+        def zeitpunkt(eintrag: dict) -> dt.datetime | None:
             beginn = eintrag.get("start")
             if isinstance(beginn, (int, float)):
-                zeit = dt.datetime.fromtimestamp(beginn, dt.timezone.utc)
-            else:
-                zeit = beginn
-            if zeit is None:
+                return dt.datetime.fromtimestamp(beginn, dt.timezone.utc)
+            return beginn
+
+        geordnet = sorted(
+            (e for e in reihen if zeitpunkt(e) is not None),
+            key=lambda e: zeitpunkt(e),
+        )
+
+        # --- Harte Grenze: erste Stunde mit Rueckspeisung ------------------
+        grenze: dt.datetime | None = None
+        for eintrag in geordnet:
+            minimum = eintrag.get("min")
+            if minimum is not None and float(minimum) < BOOTSTRAP_RUECKLAUF_W:
+                grenze = zeitpunkt(eintrag)
+                break
+
+        gesammelt: dict[str, dict[int, float]] = {}
+        for eintrag in geordnet:
+            zeit = zeitpunkt(eintrag)
+            if grenze is not None and zeit >= grenze:
+                break
+            mittel = eintrag.get("mean")
+            if mittel is None or not (0.0 <= float(mittel) <= 30000.0):
                 continue
             lokal = zeit.astimezone(zeitzone)
-            if not (0.0 <= float(mittel) <= 30000.0):
-                continue
-            gesammelt.setdefault(lokal.date().isoformat(), {})[
-                str(lokal.hour)
-            ] = round(float(mittel), 1)
+            gesammelt.setdefault(lokal.date().isoformat(), {})[lokal.hour] = float(mittel)
 
-        # Nur Tage uebernehmen, die weitgehend vollstaendig sind.
-        uebernommen = {t: p for t, p in gesammelt.items() if len(p) >= 20}
-        if not uebernommen:
+        voll = {t: p for t, p in gesammelt.items() if len(p) >= BOOTSTRAP_MIN_STUNDEN}
+        if not voll:
             return
-        self.lernstand.hauslast.tage.update(uebernommen)
-        self.lernstand.hauslast.bootstrap_tage |= set(uebernommen)
-        self.lernstand.bootstrap = {
-            "hauslast_quelle": quelle,
-            "hauslast_tage": len(uebernommen),
-            "hauslast_verfahren": "Stundenmittel aus der Langzeitstatistik",
-            "hinweis": (
-                "Vorbelegte Tage gehen in den Wert ein, zaehlen aber nicht "
-                "fuer die Aussage `gelernt` - sie sind Stundenmittel, keine "
-                "Stundenmediane, und ein Reglertest schlaegt darin durch."
+
+        def median_profil(wochenende: bool) -> tuple[list[float] | None, int]:
+            tage = [
+                t for t in voll
+                if (dt.date.fromisoformat(t).weekday() >= 5) == wochenende
+            ]
+            if len(tage) < MIN_TAGE_HAUSLAST:
+                return None, len(tage)
+            werte: list[float] = []
+            for stunde in range(24):
+                je_stunde = [voll[t][stunde] for t in tage if stunde in voll[t]]
+                m = robust.median(je_stunde)
+                if m is None:
+                    return None, len(tage)
+                werte.append(round(m, 1))
+            return werte, len(tage)
+
+        werktag, n_wt = median_profil(False)
+        wochenende, n_we = median_profil(True)
+        if werktag is None and wochenende is None:
+            return
+
+        tage_sortiert = sorted(voll)
+        self.lernstand.hauslast.startprofil = {
+            "werktag": werktag,
+            "wochenende": wochenende,
+            "n_werktag": n_wt,
+            "n_wochenende": n_we,
+            "quelle": quelle,
+            "von": tage_sortiert[0],
+            "bis": tage_sortiert[-1],
+            "grenze": grenze.astimezone(zeitzone).isoformat(timespec="minutes")
+            if grenze else None,
+            "verfahren": (
+                "Median je Stunde und Tagestyp aus der Zaehlerstatistik vor "
+                "der ersten gemessenen Rueckspeisung. In diesem Zeitraum gab "
+                "es weder PV noch Speicher, der Netzbezug ist also identisch "
+                "mit der Hauslast."
             ),
         }
+        self.lernstand.bootstrap = {
+            "hauslast_quelle": quelle,
+            "hauslast_tage": len(voll),
+            "hauslast_werktage": n_wt,
+            "hauslast_wochenendtage": n_we,
+            "gueltig_bis": self.lernstand.hauslast.startprofil["grenze"],
+        }
         _LOGGER.info(
-            "Hauslast aus %d Tagen Langzeitstatistik von %s vorbelegt. Diese "
-            "Tage zaehlen nicht fuer `gelernt`.",
-            len(uebernommen), quelle,
+            "Startprofil der Hauslast aus %s: %d Tage (%d Werktage, %d "
+            "Wochenendtage) von %s bis %s. Harte Grenze bei %s - ab dort "
+            "misst der Zaehler nicht mehr die Hauslast.",
+            quelle, len(voll), n_wt, n_we,
+            tage_sortiert[0], tage_sortiert[-1],
+            self.lernstand.hauslast.startprofil["grenze"] or "keine Rueckspeisung gefunden",
         )
 
     # ------------------------------------------------------------------
@@ -291,10 +361,8 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # --- Simulation ---------------------------------------------------
         pegel_info = self.lernstand.pegel.wert(heute)
         eta_info = self.lernstand.eta.wert(heute)
-        werktag_profil, werktag_n, werktag_eigen = self.lernstand.hauslast.profil(
-            heute, False
-        )
-        we_profil, we_n, we_eigen = self.lernstand.hauslast.profil(heute, True)
+        werktag_profil, werktag_n = self.lernstand.hauslast.profil(heute, False)
+        we_profil, we_n = self.lernstand.hauslast.profil(heute, True)
 
         umgebung = Umgebung(
             breite=self.breite,
@@ -358,8 +426,6 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "wochenende": [round(x, 1) for x in we_profil],
                 "stichprobe_werktag": werktag_n,
                 "stichprobe_wochenende": we_n,
-                "selbst_gemessen_werktag": werktag_eigen,
-                "selbst_gemessen_wochenende": we_eigen,
             },
             "pegel_info": pegel_info,
             "eta_info": eta_info,

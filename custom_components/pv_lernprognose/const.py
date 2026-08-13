@@ -251,6 +251,33 @@ QUELLE_HAUSLAST_W: Final = (
     "sensor.anker_solix_solarbank_4_e5000_pro_441_startseite_last",
     "sensor.solarbank_dc_straenge_441_pv_hauslast_modbus",
 )
+
+# Kaltstartquelle des Hauslastprofils - NUR fuer den Bootstrap, niemals
+# laufend. Der IR-Lesekopf misst die Leistung direkt am Zaehler. Solange es
+# weder PV noch Speicher gab, ist der Netzbezug identisch mit der Hauslast;
+# danach misst derselbe Sensor den Bezug NACH PV und Speicher und hat mit
+# der Hauslast nichts mehr zu tun.
+#
+# Deshalb steht diese Entity bewusst NICHT in QUELLE_HAUSLAST_W. Der
+# Bootstrap bestimmt die Gueltigkeitsgrenze selbst am Vorzeichen (siehe
+# BOOTSTRAP_RUECKLAUF_W) und schneidet dort hart ab. Ein Datum steht
+# absichtlich nirgends - es wuerde beim naechsten Anlagenumbau stillschweigend
+# falsch werden.
+QUELLE_HAUSLAST_BOOTSTRAP: Final = ("sensor.stromleser_emh_power",)
+
+# Ein Stundenminimum unterhalb dieser Schwelle beweist Rueckspeisung ins
+# Netz und damit eine laufende Erzeugungsanlage. Ab der ersten solchen
+# Stunde ist der Zaehlerwert keine Hauslast mehr, und der Bootstrap bricht
+# ab. Null waere die exakte Grenze; -5 W laesst Messrauschen und
+# Nulldurchgaenge des Lesekopfs zu, ohne echte Einspeisung durchzulassen
+# (die erste gemessene lag bei -423 W).
+BOOTSTRAP_RUECKLAUF_W: Final = -5.0
+
+# Ein Tag geht nur mit mindestens so vielen Stunden in das Startprofil ein.
+BOOTSTRAP_MIN_STUNDEN: Final = 20
+
+# Wieviele Tage der Bootstrap hoechstens zurueckliest.
+BOOTSTRAP_TAGE_MAX: Final = 120
 QUELLE_LADEENERGIE_KWH: Final = (
     "sensor.anker_solix_solarbank_4_e5000_pro_441_batterie_ladeenergie",
     "sensor.solarbank_dc_straenge_441_pv_ladeenergie_kumuliert_modbus",
@@ -304,17 +331,31 @@ ERSATZ_MAX_LADELEISTUNG_W: Final = 3000.0
 ERSATZ_SOC_MAX: Final = 100.0
 ERSATZ_SOC_MIN: Final = 12.0
 
-# --- Startwert des Hauslastprofils ----------------------------------------
-# Juli-Median aus sensor.stromleser_emh_power, 20.07. bis 08.08.2026, in
-# dem Fenster gab es keine PV - Netzleistung ist dort identisch mit der
-# Hauslast. 17 bis 18 saubere Tage je Stunde, hergeleitet in
-# docs/PROGNOSE.md Abschnitt 3. Index 0 = 00 Uhr.
+# --- Startwerte des Hauslastprofils ---------------------------------------
+# Median je Stunde aus sensor.stromleser_emh_power, 23.06. bis 07.08.2026.
+# In diesem Fenster gab es keine PV und keinen Speicher - der Zaehler misst
+# reinen Netzbezug, und der ist dort identisch mit der Hauslast. 43 Tage
+# mit mindestens 20 Stunden Abdeckung, davon 31 Werktage und 12
+# Wochenendtage. Index 0 = 00 Uhr.
 #
-# Das ist ein Startwert, kein gelernter Wert. Der Schaetzer weist ihn als
-# solchen aus (gelernt: false), bis genug eigene Tage vorliegen.
+# Diese Konstanten sind der LETZTE Rueckfall. Im Betrieb ermittelt der
+# Coordinator dasselbe Profil beim Kaltstart selbst aus der
+# Langzeitstatistik (siehe QUELLE_HAUSLAST_BOOTSTRAP) - damit stimmt es
+# auch dann, wenn sich der Haushalt seit August 2026 geaendert hat.
+#
+# Beides sind Startwerte, keine gelernten Werte. Der Schaetzer weist sie
+# als solche aus (gelernt: false), bis genug eigene Tage vorliegen.
 START_HAUSLAST_W: Final = (
-    355, 324, 318, 267, 292, 351, 541, 480, 400, 497, 385, 394,
-    485, 657, 501, 584, 579, 568, 682, 629, 550, 587, 510, 392,
+    324, 310, 287, 276, 294, 327,
+    543, 529, 372, 387, 354, 386,
+    433, 677, 532, 534, 667, 557,
+    522, 595, 517, 560, 509, 371,
+)
+START_HAUSLAST_WE_W: Final = (
+    450, 359, 320, 277, 285, 338,
+    353, 326, 469, 551, 426, 444,
+    617, 583, 563, 507, 494, 579,
+    590, 689, 581, 549, 581, 500,
 )
 
 # Startwert des Pegels gegen Forecast.Solar.

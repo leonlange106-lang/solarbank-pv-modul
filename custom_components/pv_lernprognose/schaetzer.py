@@ -56,6 +56,7 @@ from .const import (
     START_ETA,
     START_GAIN,
     START_HAUSLAST_W,
+    START_HAUSLAST_WE_W,
     START_PEGEL,
 )
 
@@ -104,13 +105,13 @@ class Hauslastschaetzer:
         self.tage: dict[str, dict[str, float]] = {}
         self.heute: str | None = None
         self.laufend: dict[str, list[float]] = {}
-        # Tage, die beim Kaltstart aus der Langzeitstatistik vorbelegt
-        # wurden. Sie sind Stundenmittel, keine Stundenmediane - ein
-        # Reglertest schlaegt darin durch. Sie gehen deshalb in den WERT
-        # ein (besser als nichts), zaehlen aber NICHT fuer die Aussage
-        # "gelernt". Diese Aussage ist eine Behauptung ueber die eigene
-        # Beobachtung, und die faengt bei null an.
-        self.bootstrap_tage: set[str] = set()
+        # Startprofil aus der Langzeitstatistik des Zaehlers, getrennt nach
+        # Tagestyp. Bewusst KEINE Pseudo-Tage im gleitenden Fenster: die
+        # Daten stammen aus Juni/Juli, das gleitende Fenster reicht 28 Tage
+        # zurueck und die Rezenzgewichtung haette sie ohnehin fast auf null
+        # gedrueckt. Als eigenstaendiger Startwert wirken sie dagegen sofort
+        # und verschwinden genau dann, wenn eigene Beobachtung sie ersetzt.
+        self.startprofil: dict[str, Any] = {}
 
     # -- Aufnahme ----------------------------------------------------------
     def probe(self, jetzt: dt.datetime, watt: float) -> None:
@@ -152,22 +153,30 @@ class Hauslastschaetzer:
                 alle[self.heute] = teil
         return _im_fenster(alle, heute, FENSTER_HAUSLAST_TAGE)
 
+    def _startwert(self, stunde: int, wochenende: bool) -> tuple[float, str]:
+        """Startwert einer Stunde und woher er stammt."""
+        schluessel = "wochenende" if wochenende else "werktag"
+        p = (self.startprofil or {}).get(schluessel)
+        if p and len(p) == 24 and p[stunde] is not None:
+            return float(p[stunde]), "Startprofil aus der Zaehlerstatistik"
+        vorgabe = START_HAUSLAST_WE_W if wochenende else START_HAUSLAST_W
+        return float(vorgabe[stunde]), "einkompilierter Startwert"
+
     def profil(
         self, heute: dt.date, wochenende: bool
-    ) -> tuple[list[float], list[int], list[int]]:
-        """24 Stundenwerte in W, Stichprobe je Stunde, davon selbst gemessen.
+    ) -> tuple[list[float], list[int]]:
+        """24 Stundenwerte in W und die Zahl selbst beobachteter Tage je Stunde.
 
-        Der Wert nutzt alles, was da ist - auch vorbelegte Tage. Die dritte
-        Rueckgabe zaehlt nur die selbst beobachteten Tage und entscheidet
-        allein darueber, ob die Stunde als gelernt gilt.
+        Solange eine Stunde weniger als MIN_TAGE_HAUSLAST eigene Tage hat,
+        gilt der Startwert. Es werden also nie eigene und fremde Daten
+        vermischt - entweder die Stunde ist selbst gelernt oder sie ist es
+        nicht, und das Attribut sagt welches.
         """
         fenster = self._fenster(heute)
         werte: list[float] = []
         n: list[int] = []
-        n_eigen: list[int] = []
         for stunde in range(24):
             paare: list[tuple[float, float]] = []
-            eigen = 0
             for tag, profil in fenster.items():
                 try:
                     ist_we = dt.date.fromisoformat(tag).weekday() >= 5
@@ -178,27 +187,42 @@ class Hauslastschaetzer:
                 v = profil.get(str(stunde))
                 if v is not None:
                     paare.append((v, _gewicht(tag, heute)))
-                    if tag not in self.bootstrap_tage:
-                        eigen += 1
             n.append(len(paare))
-            n_eigen.append(eigen)
             if len(paare) >= MIN_TAGE_HAUSLAST:
-                m = robust.robuster_gewichteter_median(paare)
-                werte.append(m if m is not None else float(START_HAUSLAST_W[stunde]))
+                # Bewusst OHNE MAD-Vorfilter, anders als bei den
+                # Tagesschaetzern. Gemessen an 31 Werktagen der
+                # Zaehlerhistorie verwirft der Filter 22 von 744
+                # Stundenwerten und drueckt die Tagessumme um 1,13 Prozent,
+                # in der Spitze um 5,6 Prozent (20 Uhr). Er trifft damit
+                # reale Lastspitzen, nicht Stoerungen - die Hauslast ist
+                # rechtsschief, und ein Trimmen der oberen Flanke
+                # verschiebt den Median systematisch nach unten.
+                #
+                # Schutz gegen Reglertests leistet der Median selbst: bei
+                # mindestens sieben Tagen koennen zwei verseuchte Tage ihn
+                # nicht bewegen. Genau daran war das alte Profil
+                # gescheitert - es war ein MITTEL aus zwei Tagen.
+                m = robust.gewichteter_median(paare)
+                werte.append(m if m is not None else self._startwert(stunde, wochenende)[0])
             else:
-                werte.append(float(START_HAUSLAST_W[stunde]))
-        return werte, n, n_eigen
+                werte.append(self._startwert(stunde, wochenende)[0])
+        return werte, n
 
     def wert(self, heute: dt.date, wochenende: bool) -> dict[str, Any]:
-        werte, n, n_eigen = self.profil(heute, wochenende)
-        gelernte_stunden = sum(1 for x in n_eigen if x >= MIN_TAGE_HAUSLAST)
+        werte, n = self.profil(heute, wochenende)
+        gelernte_stunden = sum(1 for x in n if x >= MIN_TAGE_HAUSLAST)
+        _, herkunft = self._startwert(0, wochenende)
         return {
             "profil": [round(x, 1) for x in werte],
             "stichprobe": n,
-            "stichprobe_selbst_gemessen": n_eigen,
             "gelernte_stunden": gelernte_stunden,
             "gelernt": gelernte_stunden >= 24,
             "tagessumme_kwh": round(sum(werte) / 1000.0, 2),
+            "startwert_herkunft": herkunft,
+            "startprofil": {
+                k: v for k, v in (self.startprofil or {}).items()
+                if k not in ("werktag", "wochenende")
+            } or None,
         }
 
     def zu_dict(self) -> dict[str, Any]:
@@ -206,14 +230,28 @@ class Hauslastschaetzer:
             "tage": self.tage,
             "heute": self.heute,
             "laufend": self.laufend,
-            "bootstrap_tage": sorted(self.bootstrap_tage),
+            "startprofil": self.startprofil,
         }
 
     def aus_dict(self, d: dict[str, Any]) -> None:
         self.tage = dict(d.get("tage") or {})
         self.heute = d.get("heute")
         self.laufend = {k: list(v) for k, v in (d.get("laufend") or {}).items()}
-        self.bootstrap_tage = set(d.get("bootstrap_tage") or [])
+        self.startprofil = dict(d.get("startprofil") or {})
+        # Migration: frueher wurden Stundenmittel aus startseite_last als
+        # Pseudo-Tage in `tage` eingeschleust. Diese Quelle existiert erst
+        # seit der PV-Installation und ist genau mit den Reglertests
+        # verseucht, die docs/PROGNOSE.md Abschnitt 3 nachweist. Sie werden
+        # entfernt; an ihre Stelle tritt das Startprofil aus der
+        # Zaehlerhistorie.
+        alt = d.get("bootstrap_tage") or []
+        for tag in alt:
+            self.tage.pop(tag, None)
+        if alt:
+            _LOGGER.info(
+                "%d vorbelegte Tage aus startseite_last verworfen; es gilt "
+                "jetzt das Startprofil aus der Zaehlerhistorie.", len(alt)
+            )
 
     def aufraeumen(self, heute: dt.date) -> None:
         self.tage = _im_fenster(self.tage, heute, FENSTER_HAUSLAST_TAGE)

@@ -540,7 +540,7 @@ langen schlechten Tag durchlassen, weil er viele Punkte beisteuert.
 
 | Größe | Fenster | Index | Robustheit | Startwert | eingeschwungen ab |
 |---|---|---|---|---|---|
-| **Hauslastprofil** | 28 Tage | Stunde × (Werktag/Wochenende) | Median je Stunde und Tag, dann gewichteter Median über Tage nach MAD-Filter | Juli-Median aus Abschnitt 3 | 7 Tage je Stunde und Tagestyp |
+| **Hauslastprofil** | 28 Tage | Stunde × (Werktag/Wochenende) | Median je Stunde und Tag, dann gewichteter Median über Tage — **ohne** MAD-Filter, Begründung in Abschnitt 19 | Startprofil aus der Zählerhistorie, 43 Tage (Abschnitt 19) | 7 Tage je Stunde und Tagestyp |
 | **Pegel vs. Forecast.Solar** | 21 Tage | — | ein Wert je Tag, dann gewichteter Median nach MAD-Filter | 1,42 (Abschnitt 13) | 5 Tage |
 | **Tagesform** | 45 Tage | Sonnenazimut in 5°-Fächern | Median je Fach und Tag, dann gewichteter Median über Tage | 1,0 („keine Verschattung bekannt") | 4 Tage **und** 8 Proben je Fach |
 | **Systemgain** | 45 Tage | — | 0,90-Quantil über die belegten Azimutfächer | 2,06 W/(W/m²) | 8 belegte Fächer |
@@ -843,12 +843,11 @@ kein Modbus-Schreibzugriff, Register 10071 unberührt.
   nachgeführt, mit zwei bis drei Wochen Nachlauf.
 - **Kein bedeckter Tag in der Eichstichprobe.** Trübungs-Halbwertszeit und
   Klarheitsschwelle sind an klarem bis wechselhaftem Wetter geeicht.
-- **Kaltstart der Tagesform.** Hauslast wird beim ersten Start aus der
-  Langzeitstatistik vorbelegt (Stundenmittel, kein Median — als Notbehelf
-  gekennzeichnet). Für Tagesform, Pegel und Wirkungsgrad gibt es keinen
-  Bootstrap: sie brauchen Auflösung unterhalb der Stunde, die der Recorder nach
-  zehn Tagen nicht mehr hat. Sie starten mit den Startwerten aus Teil I und
-  weisen das aus.
+- **Kaltstart der Tagesform.** Die Hauslast bekommt beim ersten Start ein
+  vollwertiges Profil aus 43 Tagen Zählerhistorie (Abschnitt 19). Für
+  Tagesform, Pegel und Wirkungsgrad gibt es keinen Bootstrap: sie brauchen
+  Auflösung unterhalb der Stunde, die der Recorder nach zehn Tagen nicht mehr
+  hat. Sie starten mit den Startwerten aus Teil I und weisen das aus.
 - **Standort.** Die Integration nimmt Breite und Länge aus der
   Home-Assistant-Grundeinstellung (51,762° N, 7,877° O). Teil I rechnete mit
   51,674° N, 7,815° O. Die Differenz von rund 10 km verschiebt den
@@ -868,3 +867,199 @@ kein Modbus-Schreibzugriff, Register 10071 unberührt.
 | `custom_components/pv_lernprognose/coordinator.py` | Abtastung, Klarheits- und Zensurerkennung, Persistenz |
 | `custom_components/pv_lernprognose/sensor.py` | die elf Entities |
 | `tools/pruefe_lernprognose.py` | Prüfstand gegen die Daten aus Teil I |
+
+## 19. Das Startprofil der Hauslast aus dem Zähler
+
+Nachtrag vom 13.08.2026, nach einem Hinweis des Betreibers: der IR-Lesekopf am
+Zähler misst die Netzleistung direkt, und **vor der PV-Inbetriebnahme ist der
+Netzbezug identisch mit der Hauslast** — kein Umweg über die Solarbank, keine
+Regelung dazwischen. Der Hinweis war richtig und liefert eine deutlich bessere
+Basis als das, worauf der Bootstrap zuerst aufsetzte.
+
+### Was vorher schieflief
+
+Der erste Bootstrap zog aus
+`sensor.anker_solix_solarbank_4_e5000_pro_441_startseite_last`. Diese Entity
+existiert erst **seit** der PV-Installation und lieferte genau vier Tage —
+darunter der 11. und 12.08. mit den Reglertests, die Abschnitt 3 als Ursache des
+alten Fehlers nachgewiesen hat. Der Schätzer startete also ausgerechnet auf den
+verseuchten Tagen.
+
+### Quelle und Zeitraum
+
+| | |
+|---|---|
+| Quelle | `sensor.stromleser_emh_power` (IR-Lesekopf am Zähler) |
+| Statistik | Stundenmittel und Stundenminimum aus der Langzeitstatistik |
+| Verfügbar | 23.06.2026 20:00 bis 11.08.2026 10:00, 1126 Stundenwerte |
+| Verwendet | 24.06. bis 07.08.2026 |
+| Tage | **43** mit mindestens 20 Stundenwerten — davon **31 Werktage, 12 Wochenendtage** |
+
+Der 23.06. fällt heraus, weil davon nur vier Stunden vorliegen.
+
+### Wie der Umschlagpunkt bestimmt wird
+
+**Nicht über ein Datum.** Ein einkompiliertes Datum würde beim nächsten
+Anlagenumbau stillschweigend falsch werden. Stattdessen über das **Vorzeichen**:
+die erste Stunde, in der das Minimum unter −5 W fällt, beweist Rückspeisung ins
+Netz und damit eine laufende Erzeugungsanlage. Ab dort schneidet der Bootstrap
+hart ab.
+
+```
+2026-08-05   Mittel 555 W   min +171 W   max 4986 W   kein Rücklauf
+2026-08-06   Mittel 514 W   min +171 W   max 3380 W   kein Rücklauf
+2026-08-07   Mittel 509 W   min +146 W   max 2977 W   kein Rücklauf
+2026-08-08   Mittel 217 W   min −587 W   max 4053 W   RÜCKLAUF
+```
+
+Erste Stunde mit Rücklauf: **08.08.2026 11:00, Minimum −423 W.**
+In den 1043 Stunden davor ist **kein einziger** negativer Wert; das kleinste
+Minimum liegt bei +141 W.
+
+Das ist einen Tag früher als beim ersten Überschlag über die Tagesmittel
+vermutet, und es passt exakt zu Abschnitt 1: dort ist der 08.08. ab 12:00 als
+Tag des Drosselungstests dokumentiert. Die Anlage ging an diesem Vormittag in
+Betrieb.
+
+Die Schwelle steht auf −5 W statt auf 0 W, damit Messrauschen und Nulldurchgänge
+des Lesekopfs nicht als Einspeisung gelesen werden. Der Abstand zum ersten
+echten Wert (−423 W) ist groß genug, dass die Wahl unkritisch ist.
+
+### Warum das Startprofil kein Pseudo-Tag im Fenster ist
+
+Der erste Entwurf schob die Bootstrap-Tage als normale Tage in das gleitende
+Fenster. Für Juni/Juli-Daten funktioniert das **nicht**: das Fenster reicht 28
+Tage zurück und hätte sie schlicht weggeworfen, und die Rezenzgewichtung
+(Halbwertszeit 14 Tage) hätte den Rest auf rund ein Zehntel gedrückt. Der
+Bootstrap hätte damit gar keine Wirkung gehabt.
+
+Deshalb ist das Startprofil eine **eigenständige Größe** neben dem gleitenden
+Fenster, ohne Verfall und ohne Rezenzgewichtung. Die Regel ist scharf getrennt:
+
+- Stunde hat **weniger** als 7 eigene beobachtete Tage → es gilt das Startprofil.
+- Stunde hat **mindestens** 7 eigene Tage → es gilt der eigene gewichtete Median.
+
+Eigene und fremde Daten werden also nie vermischt. Das Attribut
+`startwert_herkunft` sagt, welcher Fall gerade zutrifft.
+
+### Der MAD-Filter greift hier nicht
+
+Der Auftrag verlangte ausdrücklich zu prüfen, ob der Ausreißerfilter reale
+Lastspitzen wegwirft. Gemessen an den 31 Werktagen:
+
+```
+verworfene Stundenwerte   22 von 744  (3,0 %)
+Wirkung auf die Tagessumme  −0,123 kWh  (−1,13 %)
+schlimmste Stunde           20 Uhr: 7 von 31 verworfen, −29 W (−5,6 %)
+```
+
+Jede einzelne Abweichung ist **negativ** — der Filter hebt nie einen Wert. Das
+ist der erwartete Effekt bei einer rechtsschiefen Verteilung: Trimmen der oberen
+Flanke verschiebt den Median systematisch nach unten. Die Tagesmaxima bis 6910 W
+sind reale Lastspitzen, und im Stundenmittel sind sie ohnehin geglättet.
+
+**Konsequenz: für das Hauslastprofil entfällt der MAD-Vorfilter.** Der Median
+allein hat 50 % Bruchpunkt — bei mindestens sieben Tagen können zwei verseuchte
+Tage ihn nicht bewegen. Genau daran war das alte Profil gescheitert, und zwar
+nicht weil es ein Median ohne Filter war, sondern weil es ein **Mittel aus zwei
+Tagen** war.
+
+Für die Tagesschätzer (Pegel, Wirkungsgrad) bleibt der MAD-Filter, denn dort ist
+ein abweichender Tag ein Gerätefehler und kein Verbrauchsmuster.
+
+### Das Profil vorher und nachher
+
+`alt` ist der Juli-Median aus Abschnitt 3 (19 Tage, ohne Trennung nach
+Tagestyp), `verseucht` das ursprünglich im Sensor hinterlegte Zwei-Tage-Mittel.
+
+| h | Werktag neu | Wochenende neu | alt (Abschn. 3) | verseucht | h | Werktag neu | Wochenende neu | alt | verseucht |
+|---|---|---|---|---|---|---|---|---|---|
+| 00 | 324 | 450 | 355 | 370 | 12 | 433 | 617 | 485 | 385 |
+| 01 | 310 | 359 | 324 | 294 | 13 | 677 | 583 | 657 | 695 |
+| 02 | 287 | 320 | 318 | 262 | **14** | **532** | 563 | 501 | **1008** |
+| 03 | 276 | 277 | 267 | 255 | **15** | **534** | 507 | 584 | **1062** |
+| 04 | 294 | 285 | 292 | 290 | 16 | 667 | 494 | 579 | 666 |
+| 05 | 327 | 338 | 351 | 326 | 17 | 557 | 579 | 568 | 700 |
+| 06 | 543 | 353 | 541 | 598 | 18 | 522 | 590 | 682 | 595 |
+| 07 | 529 | 326 | 480 | 528 | 19 | 595 | 689 | 629 | 973 |
+| 08 | 372 | 469 | 400 | 397 | 20 | 517 | 581 | 550 | 657 |
+| 09 | 387 | 551 | 497 | 460 | 21 | 560 | 549 | 587 | 434 |
+| 10 | 354 | 426 | 385 | 468 | 22 | 509 | 581 | 510 | 539 |
+| 11 | 386 | 444 | 394 | 462 | 23 | 371 | 500 | 392 | 445 |
+
+**Tagessumme: Werktag 10,86 kWh, Wochenende 11,43 kWh, alt 11,33 kWh,
+verseucht 12,87 kWh.**
+
+Die beiden Stunden, um die es ging:
+
+```
+14 Uhr:  532 W   statt 1008 W   (−476 W, minus 47 %)
+15 Uhr:  534 W   statt 1062 W   (−528 W, minus 50 %)
+```
+
+Beide liegen jetzt bei ziemlich genau der Hälfte des verseuchten Werts — also
+dort, wo Abschnitt 3 sie aus 19 Tagen vermutet hatte, nur auf 43 Tagen und mit
+Wochenendtrennung.
+
+### Das Wochenende hatte vorher gar keine Basis
+
+Das ist der zweite Gewinn. Der alte Startwert war ein einziges Profil für alle
+Tage; das Wochenendprofil des Schätzers hatte keinerlei Datengrundlage. Die
+Unterschiede sind erheblich und plausibel:
+
+```
+06 Uhr   Werktag 543 W   Wochenende 353 W    (kein Aufstehen zur Arbeit)
+07 Uhr   Werktag 529 W   Wochenende 326 W
+09 Uhr   Werktag 387 W   Wochenende 551 W    (spätes Frühstück)
+12 Uhr   Werktag 433 W   Wochenende 617 W    (Mittagessen zu Hause)
+16 Uhr   Werktag 667 W   Wochenende 494 W
+19 Uhr   Werktag 595 W   Wochenende 689 W
+```
+
+### Wirkung auf den Backtest
+
+Dieselben 31 Läufe wie in Abschnitt 15, nur mit dem neuen Startprofil statt dem
+Juli-Median:
+
+| Konfiguration | Bias | MAE | Zeit | RMSE |
+|---|---|---|---|---|
+| alt: EXP 2,0 · 0,6/1,6 · 20 min · Profil vorbelegt | −28,6 | 28,64 | 95 | 17,2 |
+| empfohlen aus Abschnitt 7 | −7,7 | 7,72 | 43 | 7,3 |
+| Lernprognose mit Juli-Median | −4,4 | 4,41 | 47 | 6,6 |
+| **Lernprognose mit Zähler-Startprofil** | **−4,0** | **3,99** | **45** | **5,8** |
+
+Der RMSE der SOC-Bahn fällt von 6,6 auf **5,8 Prozentpunkte**. Das ist eine
+unabhängige Bestätigung: der Backtest kennt das Startprofil nicht, er sieht nur,
+dass die Prognose besser trifft.
+
+### Warum der Zähler keine laufende Quelle ist
+
+Ab dem 08.08. 11:00 misst derselbe Sensor den Netzbezug **nach** PV und
+Speicher. Die Tagesmittel fallen von 509 W auf 147–228 W — das ist nicht der
+Verbrauch, das ist der Rest, den die Anlage nicht deckt.
+
+`sensor.stromleser_emh_power` steht deshalb bewusst **nicht** in
+`QUELLE_HAUSLAST_W`, sondern in einer eigenen Konstanten
+`QUELLE_HAUSLAST_BOOTSTRAP`, und die Vorzeichenprüfung sitzt im Code, nicht in
+dieser Dokumentation. Als laufende Quelle bleibt es bei
+`startseite_last` beziehungsweise dem Modbus-Hauslastregister — die messen die
+Hauslast auch mit laufender Anlage.
+
+Der Bootstrap läuft genau einmal: er wird übersprungen, sobald ein Startprofil
+im Lernstand steht. Eine bestehende Installation zieht ihn beim nächsten Start
+nach, ohne dass jemand den Lernstand löschen muss.
+
+### Live bestätigt
+
+Nach dem Neustart am 13.08.2026 hat die Integration den Bootstrap selbst
+ausgeführt und exakt das reproduziert, was oben von Hand gerechnet wurde:
+
+```
+quelle       sensor.stromleser_emh_power
+von          2026-06-24        bis   2026-08-07
+grenze       2026-08-08T11:00+02:00
+n_werktag    31                n_wochenende   12
+```
+
+Die vier vorbelegten Tage aus `startseite_last` wurden beim Laden verworfen; im
+gleitenden Fenster steht nur noch der laufende eigene Tag.
