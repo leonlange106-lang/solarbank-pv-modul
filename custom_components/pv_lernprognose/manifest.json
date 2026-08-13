@@ -1,0 +1,13 @@
+{
+  "domain": "pv_lernprognose",
+  "name": "PV Lernprognose",
+  "version": "0.1.0",
+  "documentation": "https://github.com/leonlange106-lang/solarbank-pv-modul",
+  "issue_tracker": "https://github.com/leonlange106-lang/solarbank-pv-modul/issues",
+  "codeowners": ["@leonlange106-lang"],
+  "config_flow": true,
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "dependencies": ["recorder"],
+  "requirements": []
+}
