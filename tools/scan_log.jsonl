@@ -9,3 +9,5 @@
 {"ts":"2026-08-13T13:40:41Z","unit":1,"fc":3,"addr":10060,"count":6,"ok":true,"raw":[27261,51544,0,0,0,0],"exc":null,"err":null}
 {"ts":"2026-08-13T13:40:41Z","unit":1,"fc":3,"addr":10064,"count":1,"ok":true,"raw":[0],"exc":null,"err":null}
 {"ts":"2026-08-13T13:40:41Z","unit":1,"fc":3,"addr":10060,"count":2,"ok":true,"raw":[27261,51544],"exc":null,"err":null}
+{"ts":"2026-08-13T14:06:54Z","unit":1,"fc":4,"addr":10014,"count":1,"ok":true,"raw":[85],"exc":null,"err":null}
+{"ts":"2026-08-13T14:06:54Z","unit":1,"fc":3,"addr":10064,"count":1,"ok":true,"raw":[0],"exc":null,"err":null}

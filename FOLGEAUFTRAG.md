@@ -1159,6 +1159,90 @@ gegenstandslos.
 
 ---
 
+### 7.19 Sitzung vom „14.08." fand am 13.08. statt — drei Punkte nicht ausführbar
+
+Der Sitzungsauftrag ist auf den **14.08.2026** datiert und nennt drei
+zeitkritische Punkte. Uhr und Repo sagen etwas anderes:
+
+| Beleg | Wert |
+|---|---|
+| Systemzeit bei Sitzungsbeginn | **13.08.2026, 16:06** |
+| `git pull` | „Already up to date", HEAD unverändert `dd254ed` |
+| Letzte Aktion der Vorsitzung | 13.08., 15:55 |
+
+Zwischen beiden Sitzungen liegen **elf Minuten**, kein Tag. Damit sind alle
+drei zeitkritischen Punkte nicht ausführbar — sie sind nicht verfallen,
+sondern **noch nicht fällig**:
+
+| Punkt | Warum nicht ausführbar |
+|---|---|
+| **A** 100-%-Zeitpunkt aus dem Recorder | Die 100 % sind noch nicht gefallen. SOC 85 % um 16:06, Prognose 17:05. Es gibt nichts zu holen. |
+| **B** Bias diskriminieren (saisonal vs. Offset) | Der Test verlangt **denselben** Messwert an einem **anderen** Tag. Heute ist der Tag, dessen Wert bereits in 3.7 steht (+13,6 / +15 / +19 min). Eine Wiederholung am selben Tag misst nichts Neues. |
+| **C** Erster vollständiger Verschattungstag | Der 14.08. hat nicht begonnen. `pv_verschattungsverlust_tag` steht weiter auf 0,772 kWh, `pv_theoretische_energie_tag` auf 3,248 kWh — beides Teiltag seit 14:00 des 13.08. |
+
+**Für die nächste Sitzung gilt unverändert:** A aus dem SOC-Verlauf holen, B als
+zweite Messung der PV4-Verspätung, C morgens ablesen. Die Vorgaben sind
+richtig, sie brauchen nur den Tageswechsel.
+
+**Erledigt gemeldet werden kann dagegen:** die Statistik von 10156 ist nach der
+Bereinigung sauber neu angelaufen — Stundenzeile 15:00 mit Mittel/Min/Max je
+**36**, nicht 360. Der Punkt aus 7.12 ist damit geschlossen.
+
+### 7.20 Die 85-%-Prognose konvergiert nicht — sie meldet „jetzt + Konstante"
+
+Gefragt war, ob die Prognose bei jedem stündlichen Forecast.Solar-Update
+springt. Die Antwort ist ja, aber der Verlauf von
+`sensor.pv_lernen_ziel_erreicht_um` zeigt daneben etwas Größeres.
+
+| Ortszeit | Prognose | **Restzeit** |
+|---|---|---|
+| 14:30:00 | 15:14:17 | 0:44:17 |
+| 14:47:17 | 15:32:17 | **0:45:00** |
+| 14:48:17 | 15:18:17 | **0:30:00** |
+| 15:00:17 | 15:30:17 | **0:30:00** |
+| 15:06:17 | 15:36:17 | **0:30:00** |
+| 15:07:17 | 15:52:17 | **0:45:00** |
+| 15:13:17 | 15:58:17 | **0:45:00** |
+
+**Die Restzeit ist auf die Sekunde konstant**, über 18 Minuten am Stück, und
+springt nur in Stufen zwischen 30:00 und 45:00. Die vorhergesagte Uhrzeit
+wandert also **exakt eine Minute pro Minute mit der Uhr mit**. Zwischen zwei
+Neuberechnungen nähert sich die Prognose dem Ziel nicht an.
+
+**Zwei Lesarten, beide dokumentiert:**
+
+1. **Quantisierte Restzeit.** Der Sensor rechnet `jetzt + Restzeit`, und die
+   Restzeit ist grob gerastert (30 / 45 min). Dafür spricht die Exaktheit:
+   physikalische Modelle liefern verrauschte Differenzen, keine Sekunde-genauen
+   Konstanten über 18 Messpunkte.
+2. **Echt konstante Restzeit.** Ladeleistung und SOC-Zuwachs entwickeln sich
+   gerade so, dass die Restzeit stehen bleibt. Möglich, erklärt aber die
+   Sekunde-genaue Gleichheit nicht.
+
+Lesart 1 ist die deutlich wahrscheinlichere. **Konsequenz:** Eine beobachtete
+„Konvergenz" der Prognose ist kein Qualitätsmerkmal, solange sie nur zwischen
+zwei Neuberechnungen gemessen wird. Das trifft die Bewertung in 7.5.
+
+**Die Prüfbedingung aus 7.4 ist nur zur Hälfte bestätigt.** Dort stand: „die
+Sprünge müssen immer kurz nach :05 liegen".
+
+- Der Sprung um **15:07:17** (+16 min) liegt kurz nach :05 — Forecast.Solar
+  aktualisiert um 15:06. **Bestätigt.**
+- Der Sprung um **14:48:17** (−14 min) liegt **nicht** dort. Er hat eine
+  andere Ursache.
+
+**Es gibt also eine zweite Sprungquelle**, und sie ist unidentifiziert. Damit
+greift der Vorschlag aus 7.9 (`E_FS` langsam in den Pegel statt als
+Momentanmultiplikator) nur den einen Sprung ab — der zweite bliebe. Das gehört
+in die Bewertung, bevor 7.9 gebaut wird.
+
+**Gegenprobe am Ergebnis:** Die 85 % sind um **16:06** gefallen. Die letzte
+aufgezeichnete Prognose davor sagte 15:58 — **8 Minuten zu früh**. Als
+Fehlerbetrag der ungelernten Tagesform auf dem 85-%-Horizont brauchbar, aber
+nicht als Ersatz für den 100-%-Test aus 7.5.
+
+---
+
 ## TEIL 8 — Arbeitsregeln für die Sitzung
 
 Vom Betreiber am 13.08. gesetzt. Faustregel dahinter: **Was reversibel und
