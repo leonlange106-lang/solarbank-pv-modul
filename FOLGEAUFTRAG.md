@@ -663,7 +663,7 @@ verwerfen, letzten guten Wert halten, und **die Zahl der Verwürfe als Attribut
 mitführen** — ein still filternder Filter versteckt irgendwann einen echten
 Defekt.
 
-### 7.4 Messreihe 3.1b, fortgeschrieben — die Prognose ist instabil
+### 7.4 Messreihe 3.1b, fortgeschrieben
 
 | Uhrzeit | SOC | Laden | Prognose 100 % | Restzeit | nötig | Faktor |
 |---|---|---|---|---|---|---|
@@ -675,11 +675,18 @@ Defekt.
 | 14:52 | 74 % | 290 W | 16:06 | 1:15 h | 1061 W | 3,7 |
 | **15:07** | **75 %** | **410 W** | **18:07** | **3:00 h** | **425 W** | **1,0** |
 
+| 15:11 | 76 % | — | 17:41 | — | — | — |
+
 Der Faktor ist reines Spiegelbild der Momentanladeleistung, kein Konvergenzmaß.
-**Um 15:07 springt die Prognose um zwei Stunden nach hinten** — von 16:06 auf
-18:07 in fünfzehn Minuten. Sie ist damit nicht nur optimistisch, sondern
-**instabil**; sie schoss erst rund eine Stunde zu früh und dann rund eine
-Stunde zu spät über das erwartete Fenster 17:00–17:15 hinaus.
+
+> **Korrektur:** Der Sprung von 16:06 auf 18:07 zwischen 14:52 und 15:07 sah
+> nach Instabilität des Modells aus. **Er ist es nicht.** Um 15:06 hat
+> `energy_production_today_remaining` seinen stündlichen Wert von Forecast.Solar
+> bekommen, `energy_production_today` sprang mit (9,619 → 9,55 kWh). Die
+> Prognose gibt eine Sprungfunktion sauber weiter, statt selbst zu springen.
+> Um 15:11 stand sie bei 17:41, also wieder auf dem erwarteten Fenster
+> 17:00–17:15 zu. **Prüfbar:** die Sprünge müssen immer kurz nach :05 liegen.
+> Ursache im Modell siehe 7.9.
 
 Die alte Prognose sagte um 15:07 „heute nur ca. 79 %, Höchststand gegen 16:52",
 sieht die 100 % also weiterhin gar nicht.
@@ -765,3 +772,45 @@ Profil sagt zu wenig Verschattung voraus.** 10173–10175 weiterhin konstant nul
 
 Der Neustart für `const.py` aus 7.1 ist noch offen und wird mit Schritt 4
 gebündelt — nicht einzeln auslösen.
+
+### 7.9 Neuer offener Punkt: Forecast.Solar schlägt als Stufe durch
+
+`E_FS` geht als **Momentanmultiplikator** in die Trübung ein:
+
+```
+Trübung = Pegel · E_FS / Σ(gain · POA · Form)
+```
+
+Forecast.Solar aktualisiert in der kostenlosen Stufe **stündlich**. Jede
+Aktualisierung erzeugt damit einen Stufensprung in der Prognose, dazwischen
+driftet das Modell. Das ist die Ursache des in 7.4 korrigierten Sprungs.
+
+**Vorschlag:** `E_FS` nur langsam in den **Pegel** einrechnen und die
+Restenergie aus dem eigenen POA-Integral ziehen. Dann verschwinden die Stufen,
+ohne dass die Reaktion auf Wetteränderungen verloren geht.
+
+Nicht in dieser Runde. Berührt den Rechenweg beider Prognosen.
+
+---
+
+## TEIL 8 — Arbeitsregeln für die Sitzung
+
+Vom Betreiber am 13.08. gesetzt. Faustregel dahinter: **Was reversibel und
+nicht im Regelbetrieb ist, wird gemacht und berichtet — nicht gefragt.**
+
+**Selbstständig entscheiden und nur berichten:**
+
+- Doku-Korrekturen jeder Art (`REGISTER.md`, `FOLGEAUFTRAG.md`, Kommentare)
+- `certain`-Flags, Anzeigenamen, Attribute
+- rein lesende Analyseskripte in `tools/`
+- Messreihen aufnehmen und auswerten
+
+**Vorlegen und warten:**
+
+- alles, was den Lesepfad verändert (Decoder, Filter, Klammern)
+- neue Entities
+- Deployment und Neustart
+- alles mit Präfix `nulleinspeisung_` / `betriebsart_` / `pv_`
+
+**Bei Unsicherheit über die Deutung einer Messung:** nicht fragen, sondern
+**beide Lesarten dokumentieren und weiterarbeiten.**
