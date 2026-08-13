@@ -1058,6 +1058,23 @@ einzigen Quelle hing. Die sechs Sondenzeilen stehen in `tools/scan_log.jsonl`.
    wäre eine Änderung am Lesepfad und ist nicht Teil dieser Freigabe. Die
    Bedeutung steht in `docs/REGISTER.md` 3.1.
 
+**Verifikation nach dem Neustart, alles um 15:45–15:48 geprüft:**
+
+| Prüfung | Ergebnis |
+|---|---|
+| `sensor.pv_batteriestatus` | 1,0 = Laden, deckt sich mit dem Vorzeichen von 10008 |
+| `sensor.pv_betriebsmodus` | 0,0 = `self_consumption` |
+| `anker_solix_official` | liefert frisch — `solarstrom` 1320 W um 15:45:16 |
+| `input_boolean.nulleinspeisung_aktiv` | aus, vor und nach dem Eingriff |
+| SHA256 `const.py` Repo ↔ Deployment | identisch (`FD25A142…44F5`) |
+| Recorder-`exclude` | greift: beide Sensoren schreiben ab dem Neustart **nichts** mehr (letzte Zeilen 15:43:59 und 15:43:54) |
+| Dashboard `pv-module` | 0 Treffer für „ganz rechts", 15 für „ganz westlich", 10 für „ganz östlich" |
+| Repo-Kopie ↔ Live-Dashboard | als JSON deckungsgleich; die Browser-Fassung wurde **nicht** überschrieben, sondern per `config_hash` fortgeschrieben |
+
+**Noch nicht prüfbar:** ob die Langzeitstatistik von 10156 in °C neu anläuft.
+Statistiken werden zur vollen Stunde gerechnet, die erste Zeile kann also erst
+ab 16:00 entstehen. Erwartet werden Werte um 36, nicht um 360.
+
 ---
 
 ## TEIL 8 — Arbeitsregeln für die Sitzung
