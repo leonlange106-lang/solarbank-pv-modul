@@ -154,7 +154,7 @@ console.log('Werte ueber 100 % heissen nur, dass die Nachbarn verschattet sind; 
 
 // --- Fenster --------------------------------------------------------------
 console.log('\nFenster je Strang (alle getrennten Einbrueche unter ' + SHADE_ON * 100 + ' %):');
-const namen = ['PV1 (ganz rechts)', 'PV2', 'PV3', 'PV4 (ganz links)'];
+const namen = ['PV1 (ganz westlich)', 'PV2', 'PV3', 'PV4 (ganz oestlich)'];
 for (let i = 0; i < 4; i++) {
   const fenster = [];
   let start = null;

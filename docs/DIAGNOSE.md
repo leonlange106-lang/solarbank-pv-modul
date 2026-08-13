@@ -398,25 +398,28 @@ Formel — der Unterschied war ein Artefakt des chirurgischen Testeingriffs.
 
 # Zuordnung der Straenge zur Dachflaeche
 
-**Vom Betreiber am 13.08.2026 per Foto belegt.** Bis dahin war die Zuordnung
-offen und in `input_select.pv_modul_N_dachposition` als `unbestaetigt: ...`
-gefuehrt.
-
-Blick auf die Dachflaeche, **von rechts nach links**:
+**Aus dem Verschattungsfahrplan hergeleitet, 13.08.2026.** Bis dahin war die
+Zuordnung offen und in `input_select.pv_modul_N_dachposition` als
+`unbestaetigt: ...` gefuehrt.
 
 | Strang | Position in der Reihe |
 |---|---|
-| PV1 | ganz rechts |
+| PV1 | ganz westlich |
 | PV2 | daneben |
 | PV3 | daneben |
-| PV4 | ganz links |
+| PV4 | ganz oestlich |
 
-Damit ist die **raeumliche Reihenfolge** gesichert. Eine Himmelsrichtung ist
-damit **nicht** belegt: `rechts` und `links` beziehen sich auf die
-Blickrichtung des Fotos, die nicht dokumentiert ist. Die frueher im Dashboard
-gefuehrte Beschriftung "PV1 West / PV4 Ost" stammte aus dem Registervergleich
-und war nie bestaetigt — sie ist deshalb entfernt worden. Das Dashboard stellt
-die Module jetzt in der Reihenfolge der Dachflaeche dar (links im Bild = PV4).
+**Der Beleg ist eine Messung, keine Angabe.** Ein Hindernis suedlich der Reihe
+wirft seinen Schatten morgens nach Westen und nachmittags nach Osten. Gemessen
+bricht PV1 zuerst ein (11:20) und PV4 zuletzt (14:24–15:36) — PV1 ist damit
+zwingend das westlichste Modul. Die Beschriftung "PV1 West / PV4 Ost" ist damit
+belegt und im Dashboard wieder gueltig.
+
+> **Nie "rechts" oder "links" schreiben.** Eine fruehere Fassung stuetzte sich
+> auf ein Betreiberfoto, dessen Blickrichtung nie festgehalten wurde. Ein Foto
+> suedwaerts ausgerichteter Module entsteht normalerweise mit Blick nach Norden,
+> und dann laege West links — die Zuordnung kippte. Rechts/links ist ohne
+> Standpunkt nie eindeutig, die Himmelsrichtung dagegen schon.
 
 ## Der Schattenwerfer ist der Giebel des gegenueberliegenden Hauses
 
@@ -436,13 +439,14 @@ ueber PV2, beide Randmodule liegen ausserhalb der Schenkel:
 
 | Strang | Position | Leistung | Spannung |
 |---|---|---|---|
-| PV1 | ganz rechts | 403 W | 29,1 V |
+| PV1 | ganz westlich | 403 W | 29,1 V |
 | PV2 | daneben | **35,5 W** | **33,5 V** |
 | PV3 | daneben | 260 W | 31,6 V |
-| PV4 | ganz links | 441 W | — |
+| PV4 | ganz oestlich | 441 W | — |
 
 **11.08. um 14:40** — der Schatten ist weitergewandert und breiter geworden,
-ein Schenkel erfasst die linke Seite: PV1 100 %, PV2 99 %, PV3 65 %, PV4 14 %.
+ein Schenkel erfasst die **oestliche** Seite: PV1 100 %, PV2 99 %, PV3 65 %,
+PV4 14 %.
 
 **Eine einzige Geometrie erklaert beide Bilder.** Eine frueher notierte
 Vermutung, es muesse mehrere unabhaengige Schattenwerfer geben, ist damit

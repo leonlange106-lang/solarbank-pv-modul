@@ -1193,8 +1193,10 @@ Zwei Korrekturen aus dem Betrieb, die die Annahmen von Abschnitt 12 stützen:
   Innerhalb von 20 Minuten wanderte der Tiefpunkt von PV2 auf PV3, während PV4
   direkt daneben bei voller Leistung blieb. Ursache ist weiterhin das
   gegenüberliegende Haus, aber eher eine schräge Traufkante als der First.
-- Modulzuordnung: PV1 ganz rechts, PV2, PV3, PV4 ganz links. Der Streifen wandert
-  über den Nachmittag von rechts nach links.
+- Modulzuordnung: PV1 ganz westlich, PV2, PV3, PV4 ganz östlich. Der Streifen
+  wandert über den Tag von West nach Ost. Die Richtung ist nicht angenommen,
+  sondern aus der Reihenfolge der Einbrüche hergeleitet — PV1 zuerst (11:20),
+  PV4 zuletzt (14:24–15:36).
 
 Für die Indizierung nach Sonnenazimut ist das eine **gute** Nachricht: ein
 schmaler Streifen ist eine scharfe Funktion des Azimuts und genau das, was

@@ -61,7 +61,7 @@ Server" beruht auf dieser einen Stichprobe.
 Abgeleitet aus allen erfolgreichen Antworten, 248 Register insgesamt:
 
 ```
-10000            10002-10003      10008-10009      10014
+10000-10005      10008-10009      10014
 10018            10022            10026            10030
 10034            10036-10079      10090-10175      10183
 10187            10199            10202            10205
@@ -71,6 +71,11 @@ Abgeleitet aus allen erfolgreichen Antworten, 248 Register insgesamt:
 ```
 
 Nichts unterhalb 10000, nichts oberhalb 60031.
+
+**Korrektur 13.08.2026:** Frühere Fassungen listeten hier nur `10000`,
+`10002-10003`, obwohl Abschnitt 3.1 auch 10001 und 10004 führt. Live nachgeholt:
+`10000 count=6` antwortet mit `[0, 1, 0, 1100, 0, 0]` — alle sechs Adressen sind
+lesbar. Der Bereich heißt deshalb jetzt `10000-10005`.
 
 **Wichtig:** Der Bereich 10000–10035 ist **nicht** als Block lesbar. Ein
 `count=32`-Read ab 10000 schlägt fehl. Die dort liegenden Größen wurden
@@ -109,21 +114,63 @@ Spalte „Sicherheit":
 | 10036 | 04 | INT32 | 1 W | `max_charge_power`, gelesen: 3000 | sicher | Hersteller-YAML, Messwert |
 | 10038 | 04 | INT32 | 1 W | `max_discharge_power` = **AC-Ausgangslimit**, gelesen: 800 | sicher | Hersteller-YAML, deckt sich mit App-Limit |
 | 10208 | 04 | INT32 | 1 W | `ac_grid_output_power` | sicher | Hersteller-YAML |
-| 10250 | 04 | UINT32 | ÷10 kWh | `rated_energy` | sicher | Hersteller-YAML |
+| 10250 | 04 | UINT32 | ÷10 kWh | `rated_energy`, gelesen: 5,1 kWh | sicher | Hersteller-YAML, Messwert |
+| 10254 | 04 | INT32 | 1 W | Ladeleistung, **positiv beim Laden**. Betragsmäßig systematisch kleiner als 10008 — **nicht** dieselbe Größe | **plausibel** | siehe unten |
 | 10262 | 04 | UINT32 | ÷10 kWh | kumulierte Ladeenergie | sicher | Hersteller-YAML |
 | 10264 | 04 | UINT32 | ÷10 kWh | kumulierte Entladeenergie | sicher | Hersteller-YAML |
+
+**Zu 10254/10255 — was widerlegt ist und was offen bleibt.** Die
+Vorzeichenumkehr gegen 10008/10009 ist trivial zu sehen und wurde früher als
+Beleg dafür genommen, es sei *dieselbe* Größe, nur invertiert. Das ist falsch.
+
+`tools/korrelation_10254.py` rechnet beide Registerpaare über 1461 Messpunkte
+des 12.08.2026 gegeneinander. Beide stehen je Messpunkt im **selben
+Abfragezyklus** (Block `10250:8` beziehungsweise `10008:2`), Nichtgleichzeitigkeit
+scheidet als Erklärung also aus:
+
+| Regime | n | r | Steigung | Achsenabschnitt |
+|---|---|---|---|---|
+| Laden (10008 < 0) | 882 | **−0,982** | **−0,9572** | **−54,3 W** |
+| Entladen (10008 > 0) | 364 | −0,148 | −2,3849 | +694,5 W |
+
+Exakt deckungsgleich waren **1 von 882** Punkten. Der Achsenabschnitt ist der
+eigentliche Befund, nicht das Verhältnis: die Regression beschreibt einen
+**festen Sockel von 54 W plus 4,3 % proportionalen Verlust**, also die Signatur
+eines Wandlungspfads mit Eigenverbrauch.
+
+| 10008 | 10254 laut Regression | Verhältnis |
+|---|---|---|
+| 200 W | 137 W | 0,69 |
+| 380 W | 309 W | 0,81 |
+| 1000 W | 903 W | 0,90 |
+| 2000 W | 1860 W | 0,93 |
+
+Die Spannweite p10–p90 (0,796–0,921) ist damit keine Streuung, sondern die
+Lastabhängigkeit selbst. Richtung plausibel: **10008 misst vor, 10254 nach dem
+Verlust** — welche Seite genau, bleibt offen. Im Entladeregime bricht der
+Zusammenhang zusammen; 10254 ist dort keine sinnvoll gedeutete Größe.
+
+**Bekannter Defekt:** Am Nulldurchgang liefert das Registerpaar vereinzelt
+±65 kW (Rohwerte `0 65526` und `65535 0`), 8 von 1461 Messpunkten. Das ist eine
+Dekodier- oder Geräteinkonsistenz, keine reale Leistung.
 
 ### 3.2 DC-Strangdaten — der Kernbefund
 
 | Adresse | FC | Typ | Skalierung | Deutung | Sicherheit | Beleg |
 |---|---|---|---|---|---|---|
 | 10167 | 04 | UINT16 | ÷10 V | Strang 1 Spannung | sicher | App-Vergleich |
-| 10168 | 04 | UINT16 | ÷100 A | Strang 1 Strom | sicher | App-Vergleich |
+| 10168 | 04 | **INT16** | ÷100 A | Strang 1 Strom | sicher | App-Vergleich |
 | 10169 | 04 | UINT16 | ÷10 V | Strang 2 Spannung | sicher | App-Vergleich |
-| 10170 | 04 | UINT16 | ÷100 A | Strang 2 Strom | sicher | App-Vergleich |
+| 10170 | 04 | **INT16** | ÷100 A | Strang 2 Strom | sicher | App-Vergleich |
 | 10171 | 04 | UINT16 | ÷10 V | Strang 3 Spannung | sicher | App-Vergleich |
-| 10172 | 04 | UINT16 | ÷100 A | Strang 3 Strom | sicher | App-Vergleich |
+| 10172 | 04 | **INT16** | ÷100 A | Strang 3 Strom | sicher | App-Vergleich |
 | 10173–10175 | 04 | UINT16 | — | **Konstant null** über 109 Messpunkte, während Strang 4 produzierte | sicher (als Nullbefund) | Langlauf 14:03–15:52 |
+
+**Zum Typ der Stromregister.** Frühere Fassungen führten 10168, 10170 und 10172
+als UINT16. `const.py` liest sie als **i16**, und das ist richtig: nachts und in
+tiefer Verschattung gehen die Ströme leicht negativ. Ohne Vorzeichen wird aus
+−0,08 A der Wert 655,28 A — ein Ausreißer, der jede Mittelung zerstört. Für die
+Spannungsregister bleibt UINT16 korrekt, sie werden nicht negativ.
 
 **Verifikation gegen die Anker-App, 11.08.2026 14:40 Uhr:**
 
@@ -152,7 +199,7 @@ gegenläufig.
 | 10227 | 04 | UINT16 | ÷10 V | Netzspannung, Messpunkt D | plausibel | wie oben |
 | 10213 | 04 | UINT16 | ÷100 Hz | Netzfrequenz | sicher | 49,94–50,05 Hz, physikalisch eindeutig |
 | 10238 | 04 | UINT16 | ÷100 Hz | Netzfrequenz, Zweitmessung | sicher | identischer Verlauf zu 10213 |
-| 10205 | 04 | UINT16 | ÷100 A | **AC-Ausgangsstrom** | **sicher** | siehe unten |
+| 10205 | 04 | **INT16** | ÷100 A | **AC-Ausgangsstrom** | **sicher** | siehe unten |
 
 **Verifikation von 10205.** Über 29 Messpunkte am Abend des 11.08.2026 wurde
 `AC-Leistung (10208) ÷ Netzspannung (10224) × 100` gegen den Rohwert von 10205
@@ -187,8 +234,34 @@ nichtssagendes, weil es eine Deutung suggeriert, die nicht belegt ist.
 | 10090–10092 | 04 | STRING | — | Modellkennung „AE103" | sicher | ASCII-Dekodierung |
 | 10100–10111 | 04 | STRING ×12 | — | Seriennummer AK7DN7M0G21100441 | sicher | Hersteller-YAML, ASCII |
 | 10112–10115 | 04 | STRING ×6 | — | Firmware „1.0.2.30" | sicher | ASCII: 0x312E 0x302E 0x322E 0x3330 |
+| 10156 | 04 | UINT16 | ÷10 °C | **Gerätetemperatur** | plausibel | siehe unten |
+| 10252 | 04 | UINT16 | bytegepackt | **Highbyte = Gerätetemperatur in °C.** Lowbyte unbestimmt | plausibel | siehe unten |
 | 32768–32772 | 03 | STRING ×5 | — | Modell „AE103" | sicher | ASCII: 0x4145 0x3130 0x3300 |
 | 32774 | 03 | UINT16 | Bitmaske | `ems_mode_mask`, gelesen: 111 = 0x6F | sicher | Bits 0,1,2,3,5,6 gesetzt, Bit 4 frei → alle Modi außer „Socket Overlay" |
+
+**Zu 10156 und 10252 — die „zwei Zustände" waren ein zu kurzes Fenster.**
+Abschnitt 3.7 führte 10156 lange als „nur zwei Zustände, 370 und 380", Abschnitt
+4 schloss daraus, das Gerät liefere überhaupt keine Temperaturen. Beides ist
+überholt:
+
+- **Es sind mehr als zwei Werte.** Live am 13.08.2026 gemessen: 10156 = **360**.
+  Die beiden Zustände des Langlaufs waren das, was ein 110-Minuten-Fenster an
+  einem stabilen Nachmittag hergibt.
+- **10156 ist das Highbyte von 10252, mal zehn** — belegt an 311 von 312
+  Messpunkten. Gegenprobe derselben Messung: Highbyte(10252) = 0x24 = 36,
+  ×10 = 360 = 10156.
+- **Daraus folgt die Stufung zwingend.** Als Highbyte kann der Wert nur in
+  Zehnerschritten springen, bei ÷10 also in ganzen Grad. Die vermeintlich
+  störende Grobstufigkeit ist damit kein Einwand gegen die Temperaturdeutung,
+  sondern ihre Bestätigung.
+- **Die frühere Spannungsthese ist widerlegt:** 16 Prozentpunkte SOC-Abfall
+  ohne jede Regung des Registers.
+
+**plausibel, nicht sicher.** „Sehr wahrscheinlich" ist nicht „gegen App oder
+Physik verifiziert" — es fehlt eine unabhängige Temperaturquelle am Gerät.
+`const.py` steht deshalb auf `certain=False`; Einheit und `device_class` sind
+trotzdem gesetzt, weil eine Temperatur ohne Einheit im Verlauf nicht lesbar ist.
+Der Registerschlüssel bleibt `r10156`, weil er die `unique_id` bildet.
 
 ### 3.5 Konfiguration (Holding, vom Hersteller beschrieben)
 
@@ -253,14 +326,17 @@ beobachtet, sucht nach etwas Netzbezogenem, nicht nach einer Batteriegröße.
 | 10125 | 57356 = 0xE00C | Unbekannt Geräteinfo 3 |
 | 10130 | 23809 = 0x5D01 | Unbekannt Geräteinfo 4 |
 | 10133 | 9480 = 0x2508 | Unbekannt Geräteinfo 5 |
-| 10156 | **Nur zwei Zustände: 370 und 380.** Siehe Abschnitt 5 | Unbekannt Stufenwert 1 |
 | 10183 | isolierte gültige Adresse | Unbekannt Einzelregister 1 |
 | 10187 | isolierte gültige Adresse | Unbekannt Einzelregister 2 |
 | 10230 | variabel 25–36 | Unbekannt AC-Block 1 |
 | 10234 | variabel 0–4 | Unbekannt AC-Block 2 |
 | 10236 | variabel 59–90 | Unbekannt AC-Block 3 |
-| 10252 / 10256 | im Energieblock | Unbekannt Energieblock 1 / 2 |
+| 10252 Lowbyte | Highbyte ist die Gerätetemperatur, siehe 3.4; das Lowbyte bleibt offen | Unbekannt Energieblock 1 |
+| 10256 | im Energieblock | Unbekannt Energieblock 2 |
 | 32775–32799 | konstant null | Unbekannt Modellblock 1 ff. |
+
+**Aus dieser Liste entfernt:** 10156 ist seit dem 13.08.2026 als
+Gerätetemperatur geführt, siehe 3.4.
 
 **Zu 10230 und 10236 ausdrücklich:** Beide korrelieren mit dem SOC-Verlauf
 (r ≈ −0,72 beziehungsweise −0,70). Das ist **kein Befund**. Der SOC stieg im
@@ -276,7 +352,10 @@ Trotz vollständigem Adressraumscan **nicht** auf Modbus verfügbar:
 - Zellspannungen
 - Zyklenzahl
 - Fehler- oder Statuscodes
-- Batterie- oder Gerätetemperaturen
+- ~~Batterie- oder Gerätetemperaturen~~ — **gestrichen am 13.08.2026.** Eine
+  Gerätetemperatur ist verfügbar: 10156 beziehungsweise das Highbyte von 10252,
+  siehe 3.4. Eine getrennte **Batterie**- oder Zelltemperatur bleibt nicht
+  auffindbar.
 - Wirkungsgrade
 - Erweiterungsakku-Slots (siehe aber die Hypothese in 3.6)
 
@@ -308,6 +387,14 @@ Messgröße. Hinzu kommt: 37,0–38,0 V liegen **über jedem plausiblen Vmp** di
 Moduls — selbst bei 0 °C wären es nur 35,3 V. Das entspricht etwa 0,94 × Voc,
 also nahe Leerlauf; ein Modul nahe Leerlauf liefert aber keine 3,3 A.
 
+**Nachtrag 13.08.2026: 10156 ist positiv identifiziert.** Der Ausschluss oben
+bleibt gültig, steht aber nicht mehr allein auf einem Negativargument — das
+Register ist die **Gerätetemperatur** (Highbyte von 10252 × 10, siehe 3.4). Die
+„exakt zwei Werte" waren die Auflösung eines 110-Minuten-Fensters an einem
+stabilen Nachmittag; live gemessen wurde inzwischen auch 360. Die
+1,0-Schritte sind die Byte-Quantisierung, nicht die Grobheit einer
+Spannungsmessung.
+
 **Weiteres Ausschlussargument:** 10173, 10174 und 10175 — also genau die Plätze,
 an denen ein viertes Paar nach dem Schema 10167/68, 10169/70, 10171/72 stehen
 müsste — sind über den gesamten Langlauf **konstant null**, obwohl Strang 4 in
@@ -319,16 +406,11 @@ nur die drei bestätigten Stränge, die Gerätezeit, der SOC, der AC-Ausgang,
 zweimal Netzfrequenz, zweimal Netzspannung und die drei AC-Block-Unbekannten,
 deren Wertebereiche (25–36, 0–4, 59–90) nicht zu 0–16 A passen.
 
-**Offen bleibt:** 10205 war in **keiner** Zeitreihe enthalten — der Langlauf las
-die Blöcke 10144:32, 10208:32 und 10040:32, und 10205 liegt in keinem davon.
-Für den endgültigen Ausschluss fehlt eine Messung über den Sonnenuntergang, die
-10205 einschließt. Entscheidungsregel: Fallen 10168, 10170 und 10172 nach
-Sonnenuntergang auf null und 10205 ebenfalls, ist 10205 der vierte Strang.
-Bleibt 10205 bei etwa 330 stehen, sind drei von vier Strängen über Modbus
-lesbar und der vierte nicht.
-
-**Erledigt: auch 10205 ist ausgeschlossen.** Es war der letzte Kandidat und hat
-sich am Abend des 11.08.2026 als AC-Ausgangsstrom erwiesen, siehe Abschnitt 3.3.
+**Erledigt: auch 10205 ist ausgeschlossen.** Es war der letzte Kandidat. Weil
+es in **keiner** Zeitreihe des Langlaufs enthalten war — der las die Blöcke
+10144:32, 10208:32 und 10040:32, und 10205 liegt in keinem davon —, wurde am
+Abend des 11.08.2026 eigens über den Sonnenuntergang nachgemessen. Ergebnis:
+10205 ist der **AC-Ausgangsstrom**, siehe Abschnitt 3.3.
 
 ### Die Restwertmethode: Strang 4 messen, ohne ihn zu finden
 
@@ -358,7 +440,7 @@ belastbar, der Einzelwert nicht.
 
 **Stand der Beweislast:** Strang 4 hat kein eigenes Registerpaar. Geprüft und
 ausgeschlossen sind 10173–10175 (konstant null bei Produktion), 10156
-(Stufenwert in 1,0-V-Schritten), 10205 (AC-Ausgangsstrom) sowie sämtliche
+(Gerätetemperatur), 10205 (AC-Ausgangsstrom) sowie sämtliche
 variablen Register der Blöcke 10040–10071, 10144–10175 und 10208–10239.
 
 ---
@@ -393,13 +475,16 @@ Solarbank-Tracker: vier Stück à 1250 W, MPP-Fenster 16–50 V, maximal 36 A.
 
 ## 7. Physische Modulzuordnung
 
-**Geklärt am 11.08.2026, 18:30.** Grundlage sind zwei unabhängige Angaben:
+**Geklärt am 11.08.2026, in der Begründung ersetzt am 13.08.2026.** Grundlage
+sind zwei unabhängige Belege:
 
 1. Die Registerzuordnung zu den App-Kanälen PV1–PV3 ist am 14:40-Wertevergleich
    belegt (Abweichung 0,2 / 2,2 / 1,8 %), PV4 ergibt sich als Restwert.
-2. Der Betreiber hat die Reihenfolge auf dem Dach angegeben und ein Foto
-   geliefert: „ganz nahe PV4, ganz weit weg PV1", Blickrichtung der Aufnahme
-   **nach Westen**. Nahes liegt damit östlich von Fernem.
+2. Die Lage in der Reihe folgt aus dem **Verschattungsfahrplan**, nicht aus
+   einer Ortsangabe: Ein Hindernis südlich der Reihe wirft seinen Schatten
+   morgens nach Westen und nachmittags nach Osten. PV1 bricht als erstes ein
+   (11:20), PV4 als letztes (14:24–15:36). **PV1 ist damit zwingend das
+   westlichste Modul.**
 
 | Register | App-Kanal | Lage in der Reihe |
 |---|---|---|
@@ -408,30 +493,60 @@ Solarbank-Tracker: vier Stück à 1250 W, MPP-Fenster 16–50 V, maximal 36 A.
 | 10171 / 10172 | PV3 | |
 | Restwert | PV4 | östlichstes Modul |
 
-**Sicherheit:** Die Registerzuordnung ist gemessen. Die Zuordnung der App-Kanäle
-zu den Dachpositionen ist eine **Angabe des Betreibers aus der Installation**,
-keine Messung. Die unabhängige Gegenprobe wäre weiterhin, ein Modul kurz
-abzudecken und zu beobachten, welcher Strom einbricht.
+> **Nie „rechts" oder „links" schreiben.** Frühere Fassungen dieses Abschnitts
+> stützten sich auf ein Betreiberfoto („ganz nahe PV4, ganz weit weg PV1") und
+> auf eine angenommene Blickrichtung nach Westen. Diese Blickrichtung wurde nie
+> festgehalten, und ein Foto südwärts ausgerichteter Module entsteht
+> normalerweise mit Blick nach Norden — dann läge West links und die Zuordnung
+> kippte. Rechts/links ist ohne Standpunkt nie eindeutig, die Himmelsrichtung
+> dagegen schon. Deshalb steht hier nur noch West/Ost.
+
+**Sicherheit:** Beide Belege sind Messungen, keine Angaben. Die unabhängige
+Gegenprobe bleibt trotzdem sinnvoll: ein Modul kurz abdecken und beobachten,
+welcher Strom einbricht. Sie ist die einzige Prüfung, die ohne die Annahme
+auskommt, dass der Verschatter südlich steht.
 
 ### Folge für die Verschattungshypothese
 
-Die ursprüngliche Annahme — eine Schattenkante wandert nachmittags von
-West/Südwest über die Reihe, der Verursacher steht westlich — ist mit dieser
-Zuordnung **nicht haltbar**. Die Messdaten zeigen das Gegenteil:
+**Die Messdaten dieses Abschnitts gelten weiter, die frühere Erklärung
+darüber nicht.** Sie verortete ein nahes Hindernis „südsüdwestlich des
+Ostendes". Der Verursacher ist stattdessen der **Giebel des gegenüberliegenden
+Hauses**: Die Mitte der Modulreihe, also die Grenze zwischen PV2 und PV3, liegt
+auf der Mitte des Nachbarhauses. Bei hoher Sommersonne ist der Schatten kurz,
+die Giebelspitze streift die Reihe nur — daher ein **schmaler wandernder
+Streifen** statt eines breiten Keils. Dass ein Modul einbricht, während der
+direkte Nachbar voll liefert, ist die Folge davon und keine Anomalie.
 
 - **14:40**, Sonne bei Azimut 206°, Elevation 51,1°: Das **Ostende** ist
   verschattet. PV3 auf 65 %, PV4 auf 14 %; PV1 und PV2 laufen voll. Ein Schatten
-  bei diesem Sonnenstand zeigt nach Nordnordost — das Hindernis steht also
-  **südsüdwestlich des Ostendes** und nah, denn es trifft nur zwei von vier
-  Modulen.
+  bei diesem Sonnenstand zeigt nach Nordnordost — der Streifen steht zu diesem
+  Zeitpunkt also über dem östlichen Teil der Reihe.
 - **14:40 bis 18:00**: PV4 steigt von 60 auf 130 W, während die Gesamtleistung
-  von 1160 auf 550 W fällt. Wandert die Sonne nach Westen, dreht der Schatten
-  desselben Hindernisses nach Osten und läuft über die Dachkante hinaus. Das
-  östlichste Modul kommt frei — gegen den Trend der Anlage.
+  von 1160 auf 550 W fällt. Wandert die Sonne weiter nach Westen, dreht der
+  Schatten nach Osten und läuft über die Dachkante hinaus. Das östlichste Modul
+  kommt frei — gegen den Trend der Anlage.
 
-**Prüfbare Vorhersage:** Morgens muss es umgekehrt sein. Sonne im Osten, Schatten
-nach Westen — PV1 und PV2 starten schwach, PV3 und PV4 stark. Trifft das nicht
-zu, ist die Deutung falsch.
+**Die prüfbare Vorhersage ist eingetroffen.** Erwartet war, dass der Streifen
+über den Tag von West nach Ost wandert, PV1 also zuerst und PV4 zuletzt
+einbricht. Aus den Daten des 12.08.2026 wurde ein Fahrplan gerechnet und am
+13.08.2026 out-of-sample geprüft:
+
+| Strang | gemessener Einbruch 13.08. | Profil sagt |
+|---|---|---|
+| PV1 (westlich) | 11:20–12:10 | 11:31–12:29 |
+| PV2 | 12:05–13:20 | 12:16–13:21 |
+| PV3 | ab 13:00 | 13:08–14:37 |
+| PV4 (östlich) | offen | 14:24–15:36 |
+
+Gesamtdelle 12:30–15:30, Minimum 0,60 gegen die geometrische
+Klarhimmelerwartung, volle Erholung ab 16 Uhr. Deshalb liegt die Tagesspitze bei
+11:25 statt am astronomischen Mittag 13:34.
+
+**Offener Punkt:** Das Profil sagt inzwischen an drei Messpunkten **zu wenig**
+Verschattung voraus. Zuletzt am 13.08. kurz vor 15:00: PV3 lag bei 259 W gegen
+396 W und 404 W der Nachbarn, also 64 % mit der Doppelsignatur Verschattung,
+obwohl der Fahrplan PV3 um 14:37 freigibt. Die Wanderrichtung stimmt, die
+Breite oder die Dauer des Streifens ist noch zu knapp angesetzt.
 
 ---
 

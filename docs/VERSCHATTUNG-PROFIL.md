@@ -48,17 +48,19 @@ einbrechen, waehrend der direkte Nachbar volle Leistung liefert.
 
 Der Verlauf aus der Dashboard-View *Verlaeufe* zeigt die Staffelung lueckenlos.
 Bis etwa 11:15 laufen alle vier Kurven deckungsgleich, dann wandert der Streifen
-von rechts nach links durch die Reihe:
+von West nach Ost durch die Reihe:
 
 | Strang | Einbruch gemessen | Tiefpunkt | Fenster laut Profil |
 |---|---|---|---|
-| PV1 (ganz rechts) | 11:20–12:10 | rund 30 W | 11:31–12:29 |
+| PV1 (ganz westlich) | 11:20–12:10 | rund 30 W | 11:31–12:29 |
 | PV2 | 12:05–13:20 | rund 55 W | 12:16–13:21 |
 | PV3 | ab 13:00 | 45 W | 13:08–14:37 |
-| PV4 (ganz links) | noch offen | — | 14:24–15:36 |
+| PV4 (ganz oestlich) | noch offen | — | 14:24–15:36 |
 
 Die vorhergesagten Fenster decken sich mit den gemessenen Einbruechen auf wenige
-Minuten. **Die Wanderrichtung ist PV1 nach PV4, also von rechts nach links.**
+Minuten. **Die Wanderrichtung ist PV1 nach PV4, also von West nach Ost** — und
+genau diese Reihenfolge belegt umgekehrt die Lage der Module: ein Hindernis
+suedlich der Reihe wirft morgens nach Westen, nachmittags nach Osten.
 
 Entscheidend ist die **Ueberlappung**: PV1 klettert ab 12:10 zurueck, waehrend
 PV2 bereits abgestuerzt ist. Genau das erwartet man von einem schmalen
@@ -184,10 +186,10 @@ Genau das zeigt die Tabelle: ein zusammenhaengender Einbruch je Strang, aber
 in modulabhaengig verschobenen Azimutbereichen —
 
 ```
-PV1  135-155        (rechts, zuerst)
+PV1  135-155        (westlich, zuerst)
 PV2       150-175
 PV3            170-205
-PV4                 200-225   (links, zuletzt)
+PV4                 200-225   (oestlich, zuletzt)
 ```
 
 Die Live-Messung des Betreibers bei Azimut 165,4 Grad (PV2 9 %, PV3 rund 60 %,

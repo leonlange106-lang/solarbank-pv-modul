@@ -190,10 +190,10 @@ Bleibt die Karte leer, dort zuerst schauen.
 
   | Strang | gemessener Einbruch 13.08. | Profil sagt |
   |---|---|---|
-  | PV1 (rechts) | 11:20–12:10 | 11:31–12:29 |
+  | PV1 (westlich) | 11:20–12:10 | 11:31–12:29 |
   | PV2 | 12:05–13:20 | 12:16–13:21 |
   | PV3 | ab 13:00 | 13:08–14:37 |
-  | PV4 (links) | offen | 14:24–15:36 |
+  | PV4 (östlich) | offen | 14:24–15:36 |
 
   Gesamtdelle 12:30–15:30, Minimum 0,60 gegen geometrische
   Klarhimmelerwartung, volle Erholung ab 16 Uhr. Deshalb liegt die Tagesspitze
@@ -764,8 +764,10 @@ Profil sagt zu wenig Verschattung voraus.** 10173–10175 weiterhin konstant nul
 
 ### 7.8 Reihenfolge ab hier
 
-1. `REGISTER.md` Punkte 1–7 aus 7.6 einarbeiten, 10254 als **plausibel**
-2. rechts/links-Durchgang über `REGISTER.md` §7 und das Dashboard
+1. ~~`REGISTER.md` Punkte 1–7 aus 7.6 einarbeiten, 10254 als **plausibel**~~
+   **erledigt 13.08. 15:30**, siehe 7.10
+2. ~~rechts/links-Durchgang über `REGISTER.md` §7 und das Dashboard~~
+   **erledigt 13.08. 15:30**, siehe 7.10 — Dashboard nur im Repo, **nicht deployt**
 3. **3.4** Recorder- und Rechenlast messen — vor allen weiteren Entities
 4. dann 8 + 9 aus 7.6 einbauen, deployen, **ein** Neustart, SHA256-Gegenprüfung
 5. 7.3 (Plausibilitätsklammer) und 7.2 (lastabhängiger Wirkungsgrad) vorlegen
@@ -790,6 +792,51 @@ Restenergie aus dem eigenen POA-Integral ziehen. Dann verschwinden die Stufen,
 ohne dass die Reaktion auf Wetteränderungen verloren geht.
 
 Nicht in dieser Runde. Berührt den Rechenweg beider Prognosen.
+
+### 7.10 Erledigt am 13.08. — Doku-Durchgang, nichts deployt
+
+**Schritt 1 aus 7.8, `docs/REGISTER.md`.** Alle sieben Punkte aus 7.6
+eingearbeitet:
+
+| Punkt | Was jetzt dort steht |
+|---|---|
+| 1 | 10156 aus §3.7 entfernt, in §3.4 als **Gerätetemperatur, plausibel** geführt, mit dem Live-Wert 360 und der Byte-Herleitung der 1-Grad-Stufung |
+| 2 | §4 „Nicht vorhanden": Gerätetemperatur gestrichen und begründet; **Batterie**temperatur bleibt als nicht auffindbar stehen |
+| 3 | 10254 neu in §3.1 als **plausibel**, mit Regressionstabelle, Verhältnistabelle und dem ±65-kW-Defekt |
+| 4 | 10252 in §3.4: Highbyte = Temperatur, Lowbyte weiter offen; §3.7 führt nur noch das Lowbyte |
+| 5 | 10168 / 10170 / 10172 / 10205 auf **INT16** korrigiert, mit dem Grund (−0,08 A würde sonst 655,28 A) |
+| 6 | §2 auf `10000-10005` erweitert, Live-Beleg `[0, 1, 0, 1100, 0, 0]` notiert |
+| 7 | „Offen bleibt: 10205 …" entfernt; der Absatz erzählt die Auflösung jetzt in einem Zug |
+
+**Schritt 2, rechts/links.** `REGISTER.md` §7 stützte sich noch auf das Foto und
+die angenommene Blickrichtung — ersetzt durch die Herleitung aus dem
+Verschattungsfahrplan. Der Abschnitt „Folge für die Verschattungshypothese"
+behält seine Messdaten, bekommt aber das Giebelmodell als Erklärung und den
+Nebenbefund aus 7.7 als offenen Punkt.
+
+Betroffen waren mehr Dateien als die beiden genannten:
+
+| Datei | Änderung |
+|---|---|
+| `docs/REGISTER.md` | §7 neu begründet, Warnhinweis ergänzt |
+| `docs/DIAGNOSE.md` | Zuordnungstabelle und beide Messtabellen auf West/Ost |
+| `docs/VERSCHATTUNG-PROFIL.md` | Fahrplantabelle und Azimutleiste |
+| `docs/PROGNOSE.md` | Beobachtungsprotokoll zur Schattenform |
+| `tools/verschattungsprofil.js` | Beschriftungs-Array der Konsolenausgabe |
+| `docs/dashboard-pv-module.json` | alle `name`-Felder, zwei Erläuterungstexte, ein Jinja-Array |
+| `FOLGEAUFTRAG.md` | „(rechts)" / „(links)" in der Fahrplantabelle in TEIL 1 |
+
+**Stehen geblieben, absichtlich:** die Warnhinweise „Nie rechts oder links
+schreiben" in `REGISTER.md` und `DIAGNOSE.md`; `DROSSELUNG.md` („rechts vom
+MPP", Kennlinienrichtung); `VERSCHATTUNG.md` Zeile 790 (Leserichtung einer
+Heatmap-Grafik); die Variablennamen `links` / `rechts` in `modell.py`,
+`schaetzer.py` und `pruefe_lernprognose.py` — dort sind es die
+Interpolationsnachbarn im Array, kein Ortsbezug.
+
+**Nicht deployt.** Das Dashboard ist nur im Repo geändert. Die laufende
+Lovelace-Ansicht zeigt weiter „ganz rechts" / „ganz links", bis das Deployment
+freigegeben ist. `docs/dashboard-pv-module.json` parst nach der Änderung
+fehlerfrei (`json.load`).
 
 ---
 

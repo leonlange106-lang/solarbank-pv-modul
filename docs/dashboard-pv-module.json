@@ -218,7 +218,7 @@
             },
             {
               "type": "heading",
-              "heading": "Reihenfolge wie auf dem Dach, links im Bild ist PV4. Vom Betreiber am 13.08. per Foto bestätigt — eine Himmelsrichtung ist damit nicht belegt.",
+              "heading": "Reihenfolge wie auf dem Dach: PV1 ganz westlich bis PV4 ganz östlich. Aus dem Verschattungsfahrplan hergeleitet — PV1 bricht zuerst ein, PV4 zuletzt.",
               "heading_style": "subtitle",
               "grid_options": {
                 "columns": "full"
@@ -227,7 +227,7 @@
             {
               "type": "tile",
               "entity": "sensor.pv_modul_4_leistung",
-              "name": "PV4 · ganz links",
+              "name": "PV4 · ganz östlich",
               "icon": "mdi:solar-panel",
               "grid_options": {
                 "columns": 6
@@ -254,7 +254,7 @@
             {
               "type": "tile",
               "entity": "sensor.pv_modul_1_leistung",
-              "name": "PV1 · ganz rechts",
+              "name": "PV1 · ganz westlich",
               "icon": "mdi:solar-panel",
               "grid_options": {
                 "columns": 6
@@ -478,7 +478,7 @@
             {
               "type": "tile",
               "entity": "sensor.pv_modul_4_leistung",
-              "name": "PV4 · ganz links",
+              "name": "PV4 · ganz östlich",
               "grid_options": {
                 "columns": 6
               }
@@ -502,7 +502,7 @@
             {
               "type": "tile",
               "entity": "sensor.pv_modul_1_leistung",
-              "name": "PV1 · ganz rechts",
+              "name": "PV1 · ganz westlich",
               "grid_options": {
                 "columns": 6
               }
@@ -533,7 +533,7 @@
             {
               "type": "tile",
               "entity": "sensor.pv_modul_4_leistungsanteil",
-              "name": "PV4 · ganz links",
+              "name": "PV4 · ganz östlich",
               "grid_options": {
                 "columns": 6
               }
@@ -557,7 +557,7 @@
             {
               "type": "tile",
               "entity": "sensor.pv_modul_1_leistungsanteil",
-              "name": "PV1 · ganz rechts",
+              "name": "PV1 · ganz westlich",
               "grid_options": {
                 "columns": 6
               }
@@ -595,7 +595,7 @@
             {
               "type": "tile",
               "entity": "binary_sensor.pv_modul_4_verschattet",
-              "name": "PV4 · ganz links",
+              "name": "PV4 · ganz östlich",
               "grid_options": {
                 "columns": 6
               }
@@ -619,7 +619,7 @@
             {
               "type": "tile",
               "entity": "binary_sensor.pv_modul_1_verschattet",
-              "name": "PV1 · ganz rechts",
+              "name": "PV1 · ganz westlich",
               "grid_options": {
                 "columns": 6
               }
@@ -747,7 +747,7 @@
             {
               "type": "tile",
               "entity": "sensor.pv_modul_1_zelltemperatur",
-              "name": "PV1 · ganz rechts",
+              "name": "PV1 · ganz westlich",
               "grid_options": {
                 "columns": 4
               }
@@ -1005,7 +1005,7 @@
               "series": [
                 {
                   "entity": "binary_sensor.pv_modul_1_verschattet",
-                  "name": "PV1 · ganz rechts",
+                  "name": "PV1 · ganz westlich",
                   "color": "#1f77b4",
                   "type": "line",
                   "curve": "stepline",
@@ -1047,7 +1047,7 @@
                 },
                 {
                   "entity": "binary_sensor.pv_modul_4_verschattet",
-                  "name": "PV4 · ganz links",
+                  "name": "PV4 · ganz östlich",
                   "color": "#8e24aa",
                   "type": "line",
                   "curve": "stepline",
@@ -1169,7 +1169,7 @@
                 "sensor.pv_modul_3_leistungsanteil",
                 "sensor.pv_modul_4_leistungsanteil"
               ],
-              "content": "{%- set az = state_attr('sun.sun','azimuth') | float(-1) -%}\n{%- set el = state_attr('sun.sun','elevation') | float(-90) -%}\n{%- set tab = {\n  90:[76,98,100,100], 95:[96,98,100,100], 100:[97,99,100,100], 105:[96,98,100,100],\n  110:[96,99,100,100], 115:[96,99,100,100], 120:[96,99,100,100], 125:[96,99,100,100],\n  130:[96,99,100,100], 135:[57,99,100,100], 140:[18,98,100,100], 145:[58,62,100,100],\n  150:[59,35,100,100], 155:[91,12,100,100], 160:[100,13,85,100], 165:[100,17,66,100],\n  170:[100,49,52,100], 175:[100,66,24,100], 180:[100,67,23,100], 185:[100,82,24,100],\n  190:[100,100,38,76], 195:[100,100,34,69], 200:[100,100,57,29], 205:[100,100,67,21],\n  210:[100,100,81,22], 215:[99,100,100,25], 220:[99,100,100,46], 225:[98,100,100,70],\n  230:[98,100,100,100], 235:[97,99,100,100], 240:[96,99,100,100], 250:[100,95,100,51],\n  255:[100,97,100,65], 260:[96,100,100,96], 265:[96,100,100,95], 270:[93,97,100,100],\n  275:[36,69,100,100] } -%}\n{%- set fach = ((az - 40) / 5) | int * 5 + 40 -%}\nSonne steht bei **{{ az | round(1) }}°** Azimut, {{ el | round(1) }}° hoch.\n\n{% if el < 10 %}Die Sonne steht zu flach — unter 10° ist das Maß Rauschen, es gibt keine Erwartung.\n{% elif fach not in tab %}Für dieses Azimutfach ({{ fach }}°) gibt es keinen belegten Wert. Im Bereich um 245° wurde die Messung verworfen, weil der Bezug zusammenbricht, sobald zwei Stränge zugleich im Schatten liegen.\n{% else %}\n| Strang | erwartet | gemessen |\n|---|---|---|\n{% for i in range(4) -%}\n{%- set nm = ['PV1 · ganz rechts','PV2','PV3','PV4 · ganz links'][i] -%}\n{%- set ist = states('sensor.pv_modul_' ~ (i+1) ~ '_leistungsanteil') | float(-1) -%}\n| {{ nm }} | {{ tab[fach][i] }} % | {{ '—' if ist < 0 else (ist | round(0) | int ~ ' %') }} |\n{% endfor %}\n\nErwartung aus dem Azimutprofil, gemessen aus den laufenden Sensoren. Werte über 100 % heißen: die Nachbarn liegen im Schatten, nicht dieser Strang.\n{% endif %}"
+              "content": "{%- set az = state_attr('sun.sun','azimuth') | float(-1) -%}\n{%- set el = state_attr('sun.sun','elevation') | float(-90) -%}\n{%- set tab = {\n  90:[76,98,100,100], 95:[96,98,100,100], 100:[97,99,100,100], 105:[96,98,100,100],\n  110:[96,99,100,100], 115:[96,99,100,100], 120:[96,99,100,100], 125:[96,99,100,100],\n  130:[96,99,100,100], 135:[57,99,100,100], 140:[18,98,100,100], 145:[58,62,100,100],\n  150:[59,35,100,100], 155:[91,12,100,100], 160:[100,13,85,100], 165:[100,17,66,100],\n  170:[100,49,52,100], 175:[100,66,24,100], 180:[100,67,23,100], 185:[100,82,24,100],\n  190:[100,100,38,76], 195:[100,100,34,69], 200:[100,100,57,29], 205:[100,100,67,21],\n  210:[100,100,81,22], 215:[99,100,100,25], 220:[99,100,100,46], 225:[98,100,100,70],\n  230:[98,100,100,100], 235:[97,99,100,100], 240:[96,99,100,100], 250:[100,95,100,51],\n  255:[100,97,100,65], 260:[96,100,100,96], 265:[96,100,100,95], 270:[93,97,100,100],\n  275:[36,69,100,100] } -%}\n{%- set fach = ((az - 40) / 5) | int * 5 + 40 -%}\nSonne steht bei **{{ az | round(1) }}°** Azimut, {{ el | round(1) }}° hoch.\n\n{% if el < 10 %}Die Sonne steht zu flach — unter 10° ist das Maß Rauschen, es gibt keine Erwartung.\n{% elif fach not in tab %}Für dieses Azimutfach ({{ fach }}°) gibt es keinen belegten Wert. Im Bereich um 245° wurde die Messung verworfen, weil der Bezug zusammenbricht, sobald zwei Stränge zugleich im Schatten liegen.\n{% else %}\n| Strang | erwartet | gemessen |\n|---|---|---|\n{% for i in range(4) -%}\n{%- set nm = ['PV1 · ganz westlich','PV2','PV3','PV4 · ganz östlich'][i] -%}\n{%- set ist = states('sensor.pv_modul_' ~ (i+1) ~ '_leistungsanteil') | float(-1) -%}\n| {{ nm }} | {{ tab[fach][i] }} % | {{ '—' if ist < 0 else (ist | round(0) | int ~ ' %') }} |\n{% endfor %}\n\nErwartung aus dem Azimutprofil, gemessen aus den laufenden Sensoren. Werte über 100 % heißen: die Nachbarn liegen im Schatten, nicht dieser Strang.\n{% endif %}"
             }
           ]
         },
@@ -1191,7 +1191,7 @@
               "grid_options": {
                 "columns": "full"
               },
-              "content": "Das gegenüberliegende Haus hat ein **Satteldach mit Spitze** — per Foto belegt. Ein Giebel wirft einen **Λ-förmigen Schatten**: die Spitze reicht am weitesten, die Schenkel laufen schräg nach außen.\n\nWeil die Kanten schräg stehen, trifft der Schatten die vier Stränge **nacheinander** statt gleichzeitig — von PV1 rechts nach PV4 links. Ein Randmodul kann voll in der Sonne stehen, während der direkte Nachbar tief im Schatten liegt.\n\n```\nPV1  135–155\nPV2       150–175\nPV3            170–205\nPV4                 200–225\n```\n\nAm 13.08. bei 165° stand die Spitze über PV2 (9 %), PV3 lag bei 60 %, beide Randmodule frei. Das Profil sagt für dieses Fach 17 / 66 / 100 / 100 — **an einem anderen Tag unabhängig bestätigt**."
+              "content": "Das gegenüberliegende Haus hat ein **Satteldach mit Spitze** — per Foto belegt. Ein Giebel wirft einen **Λ-förmigen Schatten**: die Spitze reicht am weitesten, die Schenkel laufen schräg nach außen.\n\nWeil die Kanten schräg stehen, trifft der Schatten die vier Stränge **nacheinander** statt gleichzeitig — von PV1 im Westen nach PV4 im Osten. Ein Randmodul kann voll in der Sonne stehen, während der direkte Nachbar tief im Schatten liegt.\n\n```\nPV1  135–155\nPV2       150–175\nPV3            170–205\nPV4                 200–225\n```\n\nAm 13.08. bei 165° stand die Spitze über PV2 (9 %), PV3 lag bei 60 %, beide Randmodule frei. Das Profil sagt für dieses Fach 17 / 66 / 100 / 100 — **an einem anderen Tag unabhängig bestätigt**."
             },
             {
               "type": "markdown",
@@ -1315,7 +1315,7 @@
               "grid_options": {
                 "columns": "full"
               },
-              "content": "PV1 blau · PV2 grün · PV3 orange · PV4 violett. Auf dem Dach liegt PV1 ganz rechts und PV4 ganz links.\n\n**Durchgezogen = gemessen oder exakt gerechnet. Gestrichelt = geschätzt.** Gestrichelt tritt nur bei Spannung und Strom von PV4 auf."
+              "content": "PV1 blau · PV2 grün · PV3 orange · PV4 violett. Auf dem Dach liegt PV1 ganz westlich und PV4 ganz östlich.\n\n**Durchgezogen = gemessen oder exakt gerechnet. Gestrichelt = geschätzt.** Gestrichelt tritt nur bei Spannung und Strom von PV4 auf."
             }
           ]
         },
@@ -1341,7 +1341,7 @@
               "entities": [
                 {
                   "entity": "sensor.pv_modul_1_leistung",
-                  "name": "PV1 · ganz rechts",
+                  "name": "PV1 · ganz westlich",
                   "color": "#1f77b4"
                 },
                 {
@@ -1356,7 +1356,7 @@
                 },
                 {
                   "entity": "sensor.pv_modul_4_leistung",
-                  "name": "PV4 · ganz links",
+                  "name": "PV4 · ganz östlich",
                   "color": "#8e24aa"
                 },
                 {
@@ -1403,7 +1403,7 @@
               "entities": [
                 {
                   "entity": "sensor.pv_modul_1_leistungsanteil",
-                  "name": "PV1 · ganz rechts",
+                  "name": "PV1 · ganz westlich",
                   "color": "#1f77b4"
                 },
                 {
@@ -1418,7 +1418,7 @@
                 },
                 {
                   "entity": "sensor.pv_modul_4_leistungsanteil",
-                  "name": "PV4 · ganz links",
+                  "name": "PV4 · ganz östlich",
                   "color": "#8e24aa"
                 }
               ]
@@ -1478,7 +1478,7 @@
               "series": [
                 {
                   "entity": "sensor.pv_modul_1_strom",
-                  "name": "PV1 · ganz rechts",
+                  "name": "PV1 · ganz westlich",
                   "color": "#1f77b4",
                   "type": "line",
                   "stroke_width": 2,
@@ -1578,7 +1578,7 @@
               "series": [
                 {
                   "entity": "sensor.pv_modul_1_spannung",
-                  "name": "PV1 · ganz rechts",
+                  "name": "PV1 · ganz westlich",
                   "color": "#1f77b4",
                   "type": "line",
                   "stroke_width": 2,
@@ -1659,7 +1659,7 @@
               "entities": [
                 {
                   "entity": "sensor.pv_modul_1_stromanteil",
-                  "name": "PV1 · ganz rechts",
+                  "name": "PV1 · ganz westlich",
                   "color": "#1f77b4"
                 },
                 {
@@ -1707,7 +1707,7 @@
               "entities": [
                 {
                   "entity": "sensor.pv_modul_1_zelltemperatur",
-                  "name": "PV1 · ganz rechts",
+                  "name": "PV1 · ganz westlich",
                   "color": "#1f77b4"
                 },
                 {
