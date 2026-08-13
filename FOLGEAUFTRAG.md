@@ -398,11 +398,32 @@ Modul wie stark einbricht.
 Ein Teil davon lässt sich **schon jetzt** aus `tools/rohdaten/pv4_tag.jsonl`
 rekonstruieren, statt vier Wochen zu warten.
 
-**Bisher unbestätigte Beobachtung:** Beide bisherigen Out-of-Sample-Vergleiche
-zeigten *zu wenig* Verschattung — das Profil sagte 17/66/100/100 voraus,
-gemessen wurden 9/60/voll/voll. Zwei Punkte sind kein Befund, aber die
-Richtung ist konsistent. Bei nun vier gestaffelten Einbrüchen pro Tag ließe
-sich das systematisch prüfen.
+**Belegter Bias, seit 13.08. nicht mehr nur Beobachtung: das Profil sagt
+durchweg ZU WENIG Verschattung voraus.** Vier unabhängige Vergleichspunkte,
+alle in dieselbe Richtung:
+
+| # | Zeitpunkt | Profil sagt | gemessen |
+|---|---|---|---|
+| 1 | Azimut 165,4° | PV2 17 % | 9 % |
+| 2 | Azimut 165,4° | PV3 66 % | rund 60 % |
+| 3 | 13.08., kurz vor 15:00 | PV3 frei ab 14:37 | **64 %**, Doppelsignatur Verschattung |
+| 4 | 13.08., 15:50 | PV4 frei ab 15:36 | **65 %** (PV1 355 W, PV2 366 W, PV3 372 W, **PV4 237 W**) |
+
+Die ersten beiden unterschätzen die **Tiefe**, die letzten beiden das **Ende**
+des Schattens. Vier konsistente Punkte an zwei verschiedenen Tagen und an drei
+verschiedenen Strängen sind kein Zufall mehr.
+
+**Konsequenz für die Ausbauentscheidung:** Das Profil unterschätzt den Verlust.
+Jede Wirtschaftlichkeitsrechnung, die auf ihm aufsetzt, rechnet den Schaden der
+Verschattung zu klein — und damit den Nutzen einer Gegenmaßnahme ebenfalls.
+Bis der Bias beziffert ist, gilt das Profil als **untere Schranke**, nicht als
+Erwartungswert.
+
+**Was zur Bezifferung fehlt:** Die vier Punkte belegen die Richtung, nicht die
+Größe. Dafür braucht es die systematische Auswertung über mehrere Tage — die
+läuft ohnehin. Ab dem 14.08. liefert `sensor.pv_verschattungsverlust_tag`
+erstmals einen vollständigen Tag; das ist die Zahl für die Entscheidung, und
+sie ist ab dann täglich da.
 
 ### 3.8 Zwei Hauslast-Lernsysteme laufen parallel — aufräumen
 
@@ -1074,6 +1095,52 @@ einzigen Quelle hing. Die sechs Sondenzeilen stehen in `tools/scan_log.jsonl`.
 **Noch nicht prüfbar:** ob die Langzeitstatistik von 10156 in °C neu anläuft.
 Statistiken werden zur vollen Stunde gerechnet, die erste Zeile kann also erst
 ab 16:00 entstehen. Erwartet werden Werte um 36, nicht um 360.
+
+### 7.17 Der CPU-Bruch ist aufgeklärt — nicht mehr untersuchen
+
+Die Ursache ist benannt und liegt außerhalb dieses Projekts: Am **10.08.2026**
+lief ein vollständiges HA-System-Audit. Darunter **fünf deinstallierte
+Add-ons**, sechs gelöschte veraltete Automationen, eine reparierte kaputte
+Template-Sensor-Kette und ein Neustart des ESPHome-Add-ons.
+
+Fünf Add-ons erklären einen Host-CPU-Abfall von 34 auf 5 % in der richtigen
+Größenordnung und zum richtigen Zeitpunkt. **Der Bruch ist damit erklärt; wer
+ihn in der Reihe wiederfindet, muss ihn nicht erneut untersuchen.**
+
+Der Nebenbefund aus 7.13 bleibt der wichtigere und ist davon unberührt:
+Host 5,2 → 15,0 gegen VM 8,8 → 9,6. Die zurückkehrende Last kommt fast
+vollständig **nicht** aus Home Assistant. Für die Kosten dieses Projekts ist
+die VM-Reihe das Maß, nicht die Host-Reihe.
+
+### 7.18 Nachgeschärft am 13.08., 16:00 — zweiter Neustart
+
+Zwei Entscheidungen des Betreibers, beide umgesetzt:
+
+**1. `operating_mode` von `clock` nach `limits`.** Begründung wörtlich: „Eine
+Sicherheitsprüfung, die bis zu 60 Minuten alt sein darf, ist keine." Der
+Stundentakt ist damit weg, der Wert ist höchstens 300 s alt. Preis ist eine
+zusätzliche Modbus-Anfrage je 300 s — `Block(10064, 1)`, als Einzelread live
+geprüft. Die Gruppe `clock` steht wieder auf `Block(10060, 2)`.
+
+**2. `battery_status` bleibt eine Zahl, bekommt aber ein statisches Attribut.**
+Neues Feld `bedeutung` im `Reg`-Dataclass, ausgegeben in
+`sensor.py:extra_state_attributes`, aber nur wenn gesetzt:
+
+| Entity | `bedeutung` |
+|---|---|
+| `sensor.pv_batteriestatus` | `0=standby, 1=laden, 2=entladen, 3=sleep` |
+| `sensor.pv_betriebsmodus` | `0=self_consumption; andere Werte siehe Hersteller-YAML` |
+
+**Warum statisch der Punkt ist:** Der Attributsatz bleibt über die Laufzeit
+konstant und wird von Home Assistant per Hash dedupliziert — er kostet keine
+zusätzliche Recorder-Zeile. Eine Übersetzung des Zustands selbst wäre eine
+Änderung am Lesepfad gewesen und ist bewusst unterblieben.
+
+**Geprüft, weil der Betreiber danach gefragt hat:** Beide Entities tragen
+**kein** `state_class`. Es werden also keine Mittelwerte über Zustandscodes
+gerechnet — ein Mittel von 1,4 zwischen „Laden" und „Entladen" kann gar nicht
+erst entstehen. `state_class=None` stand von Anfang an im `Reg`, die Sorge war
+gegenstandslos.
 
 ---
 

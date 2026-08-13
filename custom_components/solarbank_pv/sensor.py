@@ -197,13 +197,20 @@ class RegisterSensor(SolarbankEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, object]:
-        return {
+        attrs: dict[str, object] = {
             "modbus_address": self._reg.address,
             "modbus_function": 4,
             "modbus_datatype": self._reg.kind,
             "modbus_scale": self._reg.scale,
             "deutung_sicher": self._reg.certain,
         }
+        # Nur fuer Register, deren Zahlenwert ein Code ist. Der Wert ist
+        # statisch, der Attributsatz bleibt damit ueber die Laufzeit konstant
+        # und wird von Home Assistant dedupliziert - er kostet keine
+        # zusaetzliche Recorder-Zeile.
+        if self._reg.bedeutung is not None:
+            attrs["bedeutung"] = self._reg.bedeutung
+        return attrs
 
 
 class DeviceTimeSensor(RegisterSensor):
