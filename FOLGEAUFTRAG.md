@@ -1264,13 +1264,20 @@ auf dem 85-%-Horizont brauchbar, aber nicht als Ersatz für den 100-%-Test aus
 ### 7.21 Verschattungstag 13.08. abgeschlossen — 0,772 kWh Nachmittagsanteil
 
 Gegen 16:15 gemessen: Verschattungsverlust **0,0 W**, alle vier Stränge
-zwischen **330 und 346 W**. Die Reihe ist frei, der Tageswert wächst heute
-nicht mehr.
+zwischen **330 und 346 W**. Die Reihe war frei.
 
-| Größe | Wert 13.08. |
+> **Korrektur, 20:40.** Hier stand: „der Tageswert wächst heute nicht mehr".
+> **Das war falsch.** Er ist von 0,772 auf **0,992 kWh** gestiegen, plus
+> 0,220 kWh — **22 % des Tageswerts nach dem Zeitpunkt, an dem ich ihn für
+> abgeschlossen erklärt habe.** Ich hatte aus einem Momentanwert von 0 W auf
+> den Rest des Tages geschlossen. Der Zuwachs ist zum Teil ein Defekt, siehe
+> 7.22.
+
+| Größe | Wert 13.08., 20:40 |
 |---|---|
-| `sensor.pv_verschattungsverlust_tag` | **0,772 kWh** |
-| `sensor.pv_theoretische_energie_tag` | 3,248 kWh |
+| `sensor.pv_verschattungsverlust_tag` | **0,992 kWh** (16:15: 0,772) |
+| `sensor.pv_theoretische_energie_tag` | 5,901 kWh (16:15: 3,248) |
+| `sensor.pv_ertrag_tag` | 10,9 kWh |
 | Erfassungsbeginn | 13.08. gegen 14:00 (Anlage der Sensoren) |
 
 **Wie der Wert zu lesen ist:** Er ist ein **Teiltag ab 14:00**, aber er enthält
@@ -1282,6 +1289,66 @@ lief also über den vollständigen relevanten Zeitraum.
 
 Die Vormittagsdelle (PV1 ab 11:20, PV2 ab 12:05) fehlt vollständig. Der erste
 vergleichbare Tageswert entsteht am **14.08.**
+
+### 7.22 Punkt A erledigt — und ein Defekt im Verschattungszähler
+
+**Der 100-%-Zeitpunkt steht: 17:20:27.** Aus dem SOC-Verlauf, lückenlos in
+1-%-Schritten alle vier bis fünf Minuten von 83 % um 15:55 bis 100 % um 17:20.
+
+| Prognose gestellt um | sagte | Fehler gegen 17:20 |
+|---|---|---|
+| 15:07 | 18:07 | +47 min zu spät |
+| 15:11 | 17:41 | +21 min zu spät |
+| 15:50 | 17:05 | **−15 min zu früh** |
+
+Die ungelernte Tagesform nähert sich dem Ziel also **von beiden Seiten** und
+landet zuletzt auf **einer Quantisierungsstufe** Abstand. Das ist der
+Fehlerbetrag, der in 3.1b gefehlt hat. Punkt A ist damit abgeschlossen; er
+braucht keine weitere Sitzung.
+
+Entladen begann um **18:42**, SOC steht um 20:38 bei 72 %.
+
+**Der Defekt: der Verschattungszähler integriert Werte, die es nicht geben
+kann.** Um 20:11–20:39 gemessen, während die gesamte Anlage rund **10 W**
+liefert (PV1 1,0 W · PV2 1,3 W · PV3 4,8 W · PV4 3,0 W):
+
+| Uhrzeit | `pv_verschattungsverlust` |
+|---|---|
+| 20:36:25 | **66,9 W** |
+| 20:36:55 | `unknown` |
+| 20:37:25 | **86,9 W** |
+| 20:37:55 | `unknown` |
+| 20:38:55 | **86,3 W** |
+| 20:39:25 | `unknown` |
+
+**Ein Verlust von 86 W bei 10 W Gesamterzeugung ist physikalisch unmöglich.**
+
+Die Schutzschwelle `mindestleistung_w = 15` **existiert und greift** — der
+Grund lautet dann „Einstrahlung zu schwach". Sie greift aber nur **jeden
+zweiten 30-s-Zyklus**, weil die Strangleistungen genau auf der Schwelle
+pendeln. In den Zyklen dazwischen rechnet die Referenzlogik aus einer winzigen
+absoluten Differenz einen großen relativen Verlust, und der Tageszähler
+integriert ihn mit.
+
+**Was das für die Ausbauentscheidung heißt:** Der Tageswert enthält einen
+Abendschwanz unbekannter Größe. Von den +0,220 kWh nach 16:15 ist ein Teil
+echte Abendverschattung bei noch stehender Sonne (17:25–19:00, rund
++0,15 kWh bei plausiblen 160 W) und ein Teil Rauschen aus der Schwachlichtphase.
+**Die Trennung ist nicht gemacht.** Bis dahin ist der Tageswert eine **obere**
+Schranke — gegenläufig zum Profilbias aus 3.7, der eine **untere** Schranke
+liefert.
+
+**Vorschlag, nicht gebaut** (Eingriff in den Rechenweg, also vorlegen):
+
+1. **Hysterese auf der Einstrahlungsschwelle**, analog zu `SHADE_ON` /
+   `SHADE_OFF`: unterhalb von 30 W Gesamtleistung sperren, erst oberhalb von
+   60 W wieder freigeben. Das beendet das Flackern im Halbstundentakt.
+2. **Klammer:** der Verlust kann nie größer sein als die theoretische Leistung
+   minus der gemessenen. Ein Wert von 86 W bei 19 W Referenz ist verwerfbar,
+   ohne dass man die Ursache kennt.
+3. **Verwurfszähler als Attribut** — dieselbe Begründung wie bei der
+   ±65-kW-Klammer in 7.3: sonst versteckt der Filter irgendwann einen echten
+   Defekt.
 
 ---
 
