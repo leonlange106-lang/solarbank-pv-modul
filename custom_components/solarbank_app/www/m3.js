@@ -799,9 +799,32 @@ sb-tile {
   white-space: nowrap;
 }
 
-.md-app-shell { overflow-x: clip; }
+/* Die Klammer muss AM PANEL sitzen, nicht erst an der Shell. Was innen zu
+   breit rechnet, drueckt sonst ueber den Rand des Custom Elements hinaus -
+   genau das war bei 390 px zu sehen: Bannertext, Hinweischip und das vierte
+   Navigationsziel waren abgeschnitten. */
+:host {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+.md-app-shell {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
 .md-view > *, .md-card, .md-banner { max-width: 100%; box-sizing: border-box; }
 .md-view img, .md-view svg { max-width: 100%; height: auto; }
+
+/* Nichts, was nicht umbricht, darf die Breite bestimmen. min-width: 0 hebt
+   die Vorgabe auf, dass ein Flex-Kind nie kleiner als sein Inhalt wird. */
+.md-banner { flex-wrap: wrap; }
+.md-banner-text { flex: 1 1 12rem; min-width: 0; }
+.md-app-bar-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-app-bar { gap: 8px; }
 
 .md-app-shell {
   display: flex;

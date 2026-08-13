@@ -206,3 +206,39 @@ Beim Bau kam eine Namenslücke heraus: `tile.js` liest
 `--md-sys-shape-corner-large`, die Spezifikation nennt `-l`. Gelöst durch
 Aliase in `M3_CSS`, sodass beide Schreibweisen auf denselben Wert zeigen. Wer
 neue Komponenten baut, kann beide verwenden.
+
+---
+
+## 8. Offener Befund: waagerechter Ueberlauf bei 390 px
+
+**Reproduzierbar**, Stand 13.08.2026 23:00.
+
+```
+python tools/bench/serve.py
+msedge --headless=new --window-size=390,844 --virtual-time-budget=9000 \
+  --screenshot=out.png \
+  "http://127.0.0.1:8765/tools/bench/index.html?szenario=tag#/start"
+```
+
+Der Inhalt laeuft rechts aus dem Bild: Hinweischip und Karten sind
+abgeschnitten, die Navigationsleiste zeigt nur drei ihrer vier Ziele.
+
+**Was ausgeschlossen ist:**
+
+| Verdacht | Befund |
+|---|---|
+| Skalierungseffekt des Prueflaufs | Bild ist nachweislich 390 × 844 px |
+| CSS kommt nicht an | Der Banner bricht nach der Aenderung korrekt um — die Regeln wirken |
+| Ausgelieferte Datei veraltet | `curl` auf `m3.js` zeigt die neuen Regeln |
+| Feste Breite in den Ansichts-Styles | kein `min-width`, keine px-Breite > 110 |
+| `transform`/`filter` auf einem Vorfahren | keine, ausser Ripple und Zurueck-Pfeil |
+
+**Was bereits versucht wurde:** `overflow-x` auf `:host` und `.md-app-shell`,
+`max-width: 100%` auf Karten und Bildern, `flex: 1 1 0` plus `min-width: 0`
+auf den Navigationszielen, `flex-wrap` auf dem Banner. Der Banner reagiert,
+die Karten nicht.
+
+**Naechster Ansatz:** Die Hausansicht rechnet Flusskoordinaten beim Aufbau
+aus `getBoundingClientRect()`. Wird sie vor der endgueltigen Breite gebaut,
+bleiben die Werte stehen. Zu pruefen, ob das SVG dadurch eine Breite
+erzwingt — und ob ein `ResizeObserver` auf der Hausansicht das loest.
