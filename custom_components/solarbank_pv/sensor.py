@@ -28,14 +28,20 @@ from .const import (
     DOMAIN,
     MIN_CURRENT_FOR_RATIO,
     MIN_CURRENT_FOR_TEMP,
+    MIN_POWER_FOR_RATIO,
+    MIN_VOLTAGE_FOR_ESTIMATE,
     MODULE_TEMP_COEFF,
     MODULE_VMP_STC,
+    PV4_ERROR_CLEAR,
+    PV4_ERROR_SHADED,
     REGISTERS,
     REGISTERS_BY_KEY,
+    SHADE_ON,
     STRINGS,
     Reg,
 )
 from .coordinator import SolarbankGroupCoordinator
+from .diagnose import build_health_sensors
 from .modbus_reader import decode
 
 
@@ -58,14 +64,60 @@ async def async_setup_entry(
         entities.append(cls(coordinator, data, reg))
 
     strings = data.coordinators["strings"]
-    for prefix, label, v_key, i_key in STRINGS:
+    for index, (prefix, label, v_key, i_key) in enumerate(STRINGS):
         entities.append(StringPowerSensor(strings, data, prefix, label, v_key, i_key))
         entities.append(CellTemperatureSensor(strings, data, prefix, label, v_key, i_key))
         entities.append(CurrentRatioSensor(strings, data, prefix, label, i_key))
+        # Zusaetzlich zum bestehenden Stromanteil, nicht an dessen Stelle. Der
+        # Leistungsanteil ist die einzige Kennzahl, die auch fuer Strang 4
+        # exakt ist - erst damit sind alle vier Module vergleichbar.
+        entities.append(PowerRatioSensor(strings, data, prefix, label, index))
 
     entities.append(String4PowerSensor(strings, data))
+    entities.append(String4VoltageSensor(strings, data))
+    entities.append(String4CurrentSensor(strings, data))
+    entities.append(PowerRatioSensor(strings, data, "pv4", "Modul 4", 3))
+
+    entities.extend(build_health_sensors(data))
 
     async_add_entities(entities)
+
+
+def string_powers(registers: dict[int, int]) -> tuple[list[float | None], bool]:
+    """Leistung aller vier Straenge aus EINEM Registerabbild.
+
+    Index 0..2 sind gemessen (U mal I), Index 3 ist die Differenz zur
+    Gesamtleistung. Dass alles aus demselben Abbild kommt, ist die
+    Voraussetzung der Rechnung - siehe den Kommentar an BLOCKS["strings"].
+
+    Zweiter Rueckgabewert: ob die Differenz negativ war und auf null geklemmt
+    wurde. Eine dauerhaft negative Differenz waere ein Deutungsfehler und darf
+    nicht stillschweigend verschwinden.
+    """
+    gemessen: list[float | None] = []
+    for _prefix, _label, v_key, i_key in STRINGS:
+        volt = read_value(registers, REGISTERS_BY_KEY[v_key])
+        amp = read_value(registers, REGISTERS_BY_KEY[i_key])
+        gemessen.append(None if volt is None or amp is None else volt * amp)
+
+    total = read_value(registers, REGISTERS_BY_KEY["pv_power_mb"])
+    if total is None or any(p is None for p in gemessen):
+        return [*gemessen, None], False
+
+    rest = total - sum(p for p in gemessen if p is not None)
+    return [*gemessen, max(rest, 0.0)], rest < 0
+
+
+def other_median(werte: list[float | None], index: int) -> float | None:
+    """Median der uebrigen Straenge. None, sobald einer davon fehlt.
+
+    Bewusst streng: ein Median ueber zwei statt drei Nachbarn waere eine andere
+    Kennzahl und wuerde im Verlauf unbemerkt neben der bisherigen stehen.
+    """
+    andere = [w for i, w in enumerate(werte) if i != index]
+    if any(w is None for w in andere):
+        return None
+    return statistics.median([w for w in andere if w is not None])
 
 
 def read_value(registers: dict[int, int], reg: Reg) -> float | None:
@@ -319,24 +371,16 @@ class String4PowerSensor(StringDerivedEntity):
 
     @property
     def native_value(self) -> float | None:
-        total = self._reg_value("pv_power_mb")
-        if total is None:
+        if not self.coordinator.data:
             return None
-        parts = [self._reg_value(v_key) for _, _, v_key, _ in STRINGS]
-        amps = [self._reg_value(i_key) for _, _, _, i_key in STRINGS]
-        if any(p is None for p in parts) or any(a is None for a in amps):
-            return None
-
-        known = sum(v * i for v, i in zip(parts, amps))
-        rest = total - known
-
         # Nachts sind alle Summanden null und die Differenz besteht nur aus
         # Rundungsrauschen. Ein kleiner negativer Wert ist dann kein Defekt.
         # Er wird auf null geklemmt, aber im Attribut kenntlich gemacht, damit
         # eine dauerhaft negative Differenz als Hinweis auf einen Deutungs-
         # fehler sichtbar bleibt statt stillschweigend verschwiegen zu werden.
-        self._clamped = rest < 0
-        return round(max(rest, 0.0), 1)
+        werte, geklemmt = string_powers(self.coordinator.data)
+        self._clamped = geklemmt
+        return None if werte[3] is None else round(werte[3], 1)
 
     @property
     def extra_state_attributes(self) -> dict[str, object]:
@@ -351,3 +395,201 @@ class String4PowerSensor(StringDerivedEntity):
             "methode": "Gesamtleistung minus Summe der drei gemessenen Straenge",
             "auf_null_geklemmt": self._clamped,
         }
+
+
+class PowerRatioSensor(StringDerivedEntity):
+    """Leistung dieses Strangs im Verhaeltnis zum Median der uebrigen drei.
+
+    Die eine Kennzahl, die fuer ALLE VIER Straenge gilt. Der bestehende
+    Stromanteil gibt es nur fuer die drei gemessenen Straenge, weil Strang 4
+    keinen gemessenen Strom hat - und ein aus der Schaetzspannung gerechneter
+    Stromanteil waere ausgerechnet bei Verschattung um rund 10 % zu hoch
+    (siehe PV4_ERROR_SHADED in const.py). Die Leistung dagegen ist fuer alle
+    vier exakt, also ist es auch dieses Verhaeltnis.
+
+    Dass der Leistungsanteil den Stromanteil als Verschattungsmass ersetzen
+    kann, ist an den drei gemessenen Straengen geprueft: ueber 3075 Messpunkte
+    des 12.08. faellen beide Masse in 99,22 % der Faelle dasselbe Urteil
+    (tools/kreuzvalidierung_pv4.py).
+    """
+
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = "measurement"
+    _attr_icon = "mdi:scale-balance"
+
+    def __init__(self, coordinator, data, prefix, label, index: int) -> None:
+        super().__init__(
+            coordinator, data, f"{prefix}_power_ratio",
+            display_name(f"{label} Leistungsanteil"),
+        )
+        self._index = index
+
+    def _ratio(self) -> float | None:
+        if not self.coordinator.data:
+            return None
+        werte, _ = string_powers(self.coordinator.data)
+        eigen = werte[self._index]
+        referenz = other_median(werte, self._index)
+        if eigen is None or referenz is None:
+            return None
+        # Nachts liefern alle Straenge null. Ein Verhaeltnis waere dann
+        # entweder eine Division durch null oder eine Scheinaussage.
+        if referenz < MIN_POWER_FOR_RATIO:
+            return None
+        return eigen / referenz
+
+    @property
+    def native_value(self) -> float | None:
+        ratio = self._ratio()
+        return None if ratio is None else round(ratio * 100.0, 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        exakt = self._index < 3
+        return {
+            "modbus_datatype": "berechnet",
+            "modbus_function": 4,
+            "modbus_scale": 1,
+            # Fuer alle vier Straenge exakt: die Leistung von Strang 4 ist eine
+            # Differenz zweier Messgroessen, keine Schaetzung.
+            "deutung_sicher": True,
+            "referenz": "Median der uebrigen drei Straenge",
+            "mindestleistung_referenz_w": MIN_POWER_FOR_RATIO,
+            "leistung_gemessen": exakt,
+        }
+
+
+class String4EstimateEntity(StringDerivedEntity):
+    """Basis der beiden geschaetzten Groessen von Strang 4.
+
+    Beide teilen dieselbe Annahme und muessen sie deshalb identisch
+    ausweisen. Die Guete haengt davon ab, ob Strang 4 gerade verschattet ist;
+    der Fehler ist dann nicht zufaellig, sondern gerichtet.
+    """
+
+    def _powers(self) -> tuple[list[float | None], float | None]:
+        """Alle vier Leistungen und die geschaetzte Spannung von Strang 4."""
+        if not self.coordinator.data:
+            return [None] * 4, None
+        werte, _ = string_powers(self.coordinator.data)
+        spannungen = [self._reg_value(v_key) for _, _, v_key, _ in STRINGS]
+        if any(v is None for v in spannungen):
+            return werte, None
+        return werte, statistics.median([v for v in spannungen if v is not None])
+
+    def _shaded(self) -> bool | None:
+        """Steht Strang 4 im Schatten? Ueber den Leistungsanteil, nicht den Strom."""
+        if not self.coordinator.data:
+            return None
+        werte, _ = string_powers(self.coordinator.data)
+        eigen = werte[3]
+        referenz = other_median(werte, 3)
+        if eigen is None or referenz is None or referenz < MIN_POWER_FOR_RATIO:
+            return None
+        return eigen / referenz < SHADE_ON
+
+    def _estimate_attributes(self) -> dict[str, object]:
+        schatten = self._shaded()
+        return {
+            "modbus_address": "geschaetzt aus 10167, 10169, 10171",
+            "modbus_function": 4,
+            "modbus_datatype": "geschaetzt",
+            "modbus_scale": 1,
+            # Der wichtigste Eintrag: dieser Wert ist NICHT gemessen.
+            "deutung_sicher": False,
+            "gemessen": False,
+            "methode": "geschaetzt, V4 = Median(V1..V3), I4 = P4 / V4",
+            "annahme": (
+                "vier identische koplanare Module mit je eigenem MPP-Tracker "
+                "fuehren dieselbe MPP-Spannung"
+            ),
+            "verschattung_beeintraechtigt": schatten,
+            # Beziffert, nicht behauptet: Kreuzvalidierung ueber 1025
+            # Messpunkte unter Last, tools/kreuzvalidierung_pv4.py.
+            "schaetzfehler_prozent": (
+                PV4_ERROR_SHADED if schatten else PV4_ERROR_CLEAR
+            ),
+            "belegstelle": "tools/kreuzvalidierung_pv4.py, docs/DIAGNOSE.md",
+        }
+
+
+class String4VoltageSensor(String4EstimateEntity):
+    """Geschaetzte Spannung von Strang 4 als Median der drei gemessenen.
+
+    Unverschattet traegt die Annahme gut: der Median der uebrigen weicht im
+    Median um 0,48 % von der Messung ab (p95 5,54 %). Steht der Strang selbst
+    im Schatten, wird seine Spannung systematisch um rund 9,5 % zu NIEDRIG
+    geschaetzt - ein verschattetes Modul faehrt hoeher, weil es kuehler ist.
+
+    Der Wert wird trotzdem geliefert und nicht auf unknown gesetzt: ein
+    gerichteter Fehler bekannter Groesse ist auswertbar, eine Luecke im Graphen
+    ausgerechnet zur Verschattungszeit nicht. Die Beeintraechtigung steht im
+    Attribut verschattung_beeintraechtigt und wird im Dashboard angezeigt.
+    """
+
+    _attr_native_unit_of_measurement = "V"
+    _attr_device_class = "voltage"
+    _attr_state_class = "measurement"
+    # Bewusst ein anderes Icon als die gemessenen Straenge (mdi:solar-panel):
+    # die Schaetzung soll sich schon in der Liste unterscheiden.
+    _attr_icon = "mdi:calculator-variant-outline"
+
+    def __init__(self, coordinator, data) -> None:
+        super().__init__(
+            coordinator, data, "pv4_voltage_est",
+            display_name("Modul 4 Spannung (geschaetzt)"),
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        _werte, spannung = self._powers()
+        return None if spannung is None else round(spannung, 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return self._estimate_attributes()
+
+
+class String4CurrentSensor(String4EstimateEntity):
+    """Geschaetzter Strom von Strang 4 aus der exakten Leistung.
+
+    I4 = P4 / V4. Der Zaehler ist exakt, der Nenner geschaetzt - der relative
+    Fehler des Stroms ist deshalb der Kehrwert des Spannungsfehlers und zeigt
+    in die entgegengesetzte Richtung: bei Verschattung rund 10,5 % zu HOCH.
+
+    Genau deshalb gibt es fuer Strang 4 bewusst KEINEN Stromanteil. Er wuerde
+    die Verschattung um denselben Faktor beschoenigen und sie damit zu spaet
+    melden - blinder Fleck genau dort, wo die Kennzahl gebraucht wird. Die
+    Verschattung von Strang 4 laeuft ueber den Leistungsanteil.
+    """
+
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = "current"
+    _attr_state_class = "measurement"
+    _attr_icon = "mdi:calculator-variant-outline"
+
+    def __init__(self, coordinator, data) -> None:
+        super().__init__(
+            coordinator, data, "pv4_current_est",
+            display_name("Modul 4 Strom (geschaetzt)"),
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        werte, spannung = self._powers()
+        leistung = werte[3]
+        if leistung is None or spannung is None:
+            return None
+        if spannung < MIN_VOLTAGE_FOR_ESTIMATE:
+            # Unter dieser Spannung ist die Division numerisch wertlos.
+            return None
+        return round(leistung / spannung, 2)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        attrs = self._estimate_attributes()
+        attrs["kein_stromanteil_weil"] = (
+            "Schaetzfehler zeigt bei Verschattung nach oben und wuerde die "
+            "Verschattung verdecken; stattdessen Leistungsanteil verwenden"
+        )
+        return attrs

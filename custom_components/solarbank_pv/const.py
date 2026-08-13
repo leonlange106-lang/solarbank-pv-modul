@@ -64,6 +64,16 @@ MIN_CURRENT_FOR_TEMP: Final = 5.0   # A
 # Gueltigkeit eines physikalischen Modells.
 MIN_CURRENT_FOR_RATIO: Final = 0.5  # A
 
+# Dasselbe fuer das Leistungsverhaeltnis. 15 W entsprechen bei rund 30 V
+# Strangspannung genau den 0,5 A von MIN_CURRENT_FOR_RATIO - die beiden
+# Schranken schneiden denselben Betriebsbereich ab, damit Strom- und
+# Leistungsanteil dieselben Messpunkte bewerten.
+MIN_POWER_FOR_RATIO: Final = 15.0  # W
+
+# Untergrenze fuer die geschaetzte Spannung von Strang 4. Darunter waere die
+# Division P4/V4 numerisch wertlos.
+MIN_VOLTAGE_FOR_ESTIMATE: Final = 5.0  # V
+
 # Verschattungsschwellen mit Hysterese, bezogen auf den Median der uebrigen
 # Straenge. Unter 0.60 gilt als verschattet, erst ueber 0.70 wieder als frei.
 SHADE_ON: Final = 0.60
@@ -365,3 +375,85 @@ STRINGS: Final[tuple[tuple[str, str, str, str], ...]] = (
     ("pv2", "Modul 2", "pv2_voltage", "pv2_current"),
     ("pv3", "Modul 3", "pv3_voltage", "pv3_current"),
 )
+
+
+# ---------------------------------------------------------------------------
+# Guete der Schaetzung fuer Strang 4
+#
+# Strang 4 hat kein eigenes Registerpaar. Seine LEISTUNG ist exakt - sie ist die
+# Differenz aus der Gesamtleistung und den drei gemessenen Straengen. Spannung
+# und Strom einzeln sind es nicht: aus einem Produkt lassen sich zwei Faktoren
+# nicht eindeutig zurueckgewinnen. Es braucht die Annahme, dass alle vier
+# koplanaren Module dieselbe MPP-Spannung fuehren, also V4 = Median(V1..V3).
+#
+# Diese Annahme ist beziffert, nicht behauptet. tools/kreuzvalidierung_pv4.py
+# schaetzt fuer jeden der drei bekannten Straenge die Spannung aus den beiden
+# uebrigen und haelt sie gegen die Messung. Grundlage sind die 1025 Messpunkte
+# unter Last des Tageslaufs vom 12.08. (tools/rohdaten/pv4_tag.jsonl):
+#
+#   unverschattet                  Median 0,48 %   p95  5,54 %   Bias +0,04 %
+#   Zielstrang selbst verschattet  Median 9,56 %   p95 12,89 %   Bias -9,47 %
+#
+# Der zweite Fall ist der gefaehrliche und trifft PV4 genau dann, wenn PV4
+# selbst im Schatten steht: die Spannung wird systematisch zu NIEDRIG und der
+# daraus gerechnete Strom um denselben Faktor zu HOCH geschaetzt. Ein Median
+# ueber drei Nachbarn hilft dagegen nicht - er verwirft einen verschatteten
+# Nachbarn, aber die Verschattung des Zielstrangs bleibt unsichtbar.
+#
+# Konsequenz im Code: Die Verschattungserkennung von Strang 4 laeuft ueber den
+# LEISTUNGSANTEIL, der ohne Spannungsannahme auskommt und damit exakt ist.
+# Dass beide Masse gleichwertig sind, ist an PV1-3 geprueft: in 99,22 % von
+# 3075 Messpunkten faellen Strom- und Leistungsanteil dasselbe Urteil.
+PV4_ERROR_CLEAR: Final = 1.0     # %, unverschattet
+PV4_ERROR_SHADED: Final = 10.0   # %, waehrend Strang 4 verschattet ist
+
+# Wie viele aufeinanderfolgende Messpunkte die Verschattung von Strang 4
+# bestaetigen muessen, bevor der Binaersensor umschaltet.
+#
+# Warum nur Strang 4 das braucht: Die Gesamtleistung aus 10002/10003 kommt in
+# 10-W-Stufen. P4 ist eine Differenz gegen diesen groben Wert und erbt dessen
+# Quantisierungsrauschen, waehrend P1..P3 aus feinem U mal I entstehen. Bei
+# einer Referenz um 100 W ist eine 10-W-Stufe ein Sprung von 10 Prozentpunkten
+# im Verhaeltnis - genug, um das Hysteresefenster 0,60/0,70 wiederholt zu
+# durchschlagen, ohne dass sich am Schatten etwas aendert.
+#
+# Die Schwellen bleiben identisch zu PV1-3, nur die Bestaetigung kommt hinzu.
+# Am Tageslauf des 12.08. gemessen (tools/kreuzvalidierung_pv4.py-Datensatz):
+# ohne Bestaetigung 42 Flanken, mit zwei Messpunkten 20 - das ist genau das
+# Niveau von PV1 (20), PV2 (22) und PV3 (11). Die verschattete Zeit aendert
+# sich dabei von 24,1 % auf 24,0 %, es verschwindet also Rauschen und keine
+# Substanz. Ohne diese Regel waere Strang 4 NICHT mit den uebrigen
+# vergleichbar - die Bestaetigung stellt die Vergleichbarkeit her, statt sie
+# aufzuheben.
+PV4_SHADE_CONFIRM: Final = 2
+
+
+# ---------------------------------------------------------------------------
+# Register, die eine Gruppe ueber ihre eigenen Entities hinaus braucht.
+#
+# Ohne diese Liste wuerde die Gesundheitspruefung einen Blockausfall uebersehen,
+# der keine eigene Entity betrifft, aber eine abgeleitete Groesse still auf
+# unknown setzt - genau die Fehlerklasse, um die es geht.
+# ---------------------------------------------------------------------------
+
+EXTRA_REQUIRED: Final[dict[str, tuple[int, ...]]] = {
+    # Strang 4 ist die Differenz zur Gesamtleistung. 10002/10003 muss im selben
+    # Zyklus wie die Strangregister vorliegen, sonst faellt sensor.pv_modul_4_*
+    # aus, ohne dass eine einzige Entity der Gruppe unavailable wuerde.
+    "strings": (10002, 10003),
+}
+
+
+def required_addresses(group_key: str) -> frozenset[int]:
+    """Registeradressen, ohne die die Gruppe unvollstaendig ist.
+
+    Bewusst nicht alle Adressen der Lesebloecke: ein Block deckt bis zu 32
+    Register ab, von denen die meisten nie gedeutet wurden. Gefordert ist nur,
+    was tatsaechlich in einen Wert eingeht.
+    """
+    adressen: set[int] = set(EXTRA_REQUIRED.get(group_key, ()))
+    for reg in REGISTERS:
+        if reg.group != group_key:
+            continue
+        adressen.update(range(reg.address, reg.address + reg.words))
+    return frozenset(adressen)

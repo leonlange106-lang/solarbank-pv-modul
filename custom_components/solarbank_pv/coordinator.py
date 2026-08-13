@@ -16,12 +16,13 @@ kostet nichts.
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
-from .const import BLOCKS, DOMAIN, MAX_BLOCK_FAILURES, Group
+from .const import BLOCKS, DOMAIN, MAX_BLOCK_FAILURES, Group, required_addresses
 from .modbus_reader import ModbusError, ModbusExceptionResponse, SolarbankReader
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +51,41 @@ class SolarbankGroupCoordinator(DataUpdateCoordinator[dict[int, int]]):
         self.dropped_blocks: set[tuple[int, int]] = set()
         self._failures: dict[tuple[int, int], int] = {}
         self._offline_logged = False
+        # Letzter Fehlertext, damit die Diagnose nicht nur "kaputt" meldet,
+        # sondern den Grund. Ein Zaehler ohne Grund ist keine Diagnose.
+        self.last_error: str | None = None
+        # Selbst mitgefuehrt statt aus dem Coordinator gelesen: ein Attribut
+        # wie last_update_success_time gibt es in dieser Kernversion nicht,
+        # und ein getattr-Zugriff darauf liefert stumm None - genau die Sorte
+        # stiller Leerwert, gegen die diese Datei gebaut wird.
+        self.last_success_time: datetime | None = None
+
+    # -- Fakten fuer die Gesundheitsanzeige ---------------------------------
+    #
+    # Bewusst nur Fakten, keine Bewertung. Ob ein verworfener Block eine
+    # Warnung oder eine Stoerung ist, entscheidet die Diagnoseschicht in Home
+    # Assistant - dort laesst sich die Schwelle ohne Neustart aendern.
+
+    @property
+    def block_count(self) -> int:
+        return len(self._blocks)
+
+    @property
+    def dropped_labels(self) -> list[str]:
+        return sorted(f"{addr}:{count}" for addr, count in self.dropped_blocks)
+
+    @property
+    def missing_addresses(self) -> list[int]:
+        """Geforderte Register, die im letzten Abbild fehlen.
+
+        Das ist der Kern der ganzen Uebung. Faellt ein Leseblock nach
+        MAX_BLOCK_FAILURES aus der Abfrage, liefert die Gruppe weiterhin
+        Daten - nur eben ohne die Register dieses Blocks. Die betroffenen
+        Entities gehen auf unknown, ohne dass irgendetwas unavailable wird.
+        Genau so blieb 10004/10005 tagelang unbemerkt.
+        """
+        vorhanden = self.data or {}
+        return sorted(a for a in required_addresses(self.group.key) if a not in vorhanden)
 
     async def _async_update_data(self) -> dict[int, int]:
         registers: dict[int, int] = {}
@@ -86,6 +122,7 @@ class SolarbankGroupCoordinator(DataUpdateCoordinator[dict[int, int]]):
                 if not self._offline_logged:
                     _LOGGER.warning("Gruppe %s nicht lesbar: %s", self.group.key, exc)
                     self._offline_logged = True
+                self.last_error = str(exc)
                 raise UpdateFailed(str(exc)) from exc
 
             self._failures.pop(ident, None)
@@ -101,4 +138,6 @@ class SolarbankGroupCoordinator(DataUpdateCoordinator[dict[int, int]]):
             _LOGGER.info("Gruppe %s wieder lesbar", self.group.key)
             self._offline_logged = False
 
+        self.last_error = None
+        self.last_success_time = dt_util.utcnow()
         return registers
