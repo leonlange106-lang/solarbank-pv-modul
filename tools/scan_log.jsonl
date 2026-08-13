@@ -3,3 +3,9 @@
 {"ts":"2026-08-13T12:54:52Z","unit":1,"fc":4,"addr":10250,"count":8,"ok":true,"raw":[0,51,9218,0,0,210,74,0],"exc":null,"err":null}
 {"ts":"2026-08-13T12:54:53Z","unit":1,"fc":4,"addr":10008,"count":2,"ok":true,"raw":[65535,65246],"exc":null,"err":null}
 {"ts":"2026-08-13T12:54:53Z","unit":1,"fc":4,"addr":10144,"count":32,"ok":true,"raw":[0,0,0,0,0,0,0,0,0,0,0,0,360,0,0,0,0,0,0,0,0,0,0,288,1376,289,1397,315,821,0,0,0],"exc":null,"err":null}
+{"ts":"2026-08-13T13:40:41Z","unit":1,"fc":4,"addr":10000,"count":6,"ok":true,"raw":[0,1,0,1320,0,0],"exc":null,"err":null}
+{"ts":"2026-08-13T13:40:41Z","unit":1,"fc":4,"addr":10001,"count":1,"ok":true,"raw":[1],"exc":null,"err":null}
+{"ts":"2026-08-13T13:40:41Z","unit":1,"fc":3,"addr":10060,"count":5,"ok":true,"raw":[27261,51544,0,0,0],"exc":null,"err":null}
+{"ts":"2026-08-13T13:40:41Z","unit":1,"fc":3,"addr":10060,"count":6,"ok":true,"raw":[27261,51544,0,0,0,0],"exc":null,"err":null}
+{"ts":"2026-08-13T13:40:41Z","unit":1,"fc":3,"addr":10064,"count":1,"ok":true,"raw":[0],"exc":null,"err":null}
+{"ts":"2026-08-13T13:40:41Z","unit":1,"fc":3,"addr":10060,"count":2,"ok":true,"raw":[27261,51544],"exc":null,"err":null}

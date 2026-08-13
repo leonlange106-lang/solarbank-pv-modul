@@ -961,6 +961,103 @@ Vorlage:
 Empfehlung: Weg 1. Die zu erhaltende Reihe besteht aus falsch skalierten
 Werten eines damals falsch gedeuteten Registers.
 
+### 7.13 Der CPU-Bruch ist echt — die Bezugsgrößen-Lesart ist widerlegt
+
+Entscheidungstest: `sensor.proxmox_cpu_auslastung` misst den **Host** von außen
+und hat durchgehende Statistik seit dem 28.07., also von **vor** dem Bruch.
+Eine geänderte Kernzahl der HAOS-VM kann die Prozentzahl des Hosts nicht
+verschieben. Zeigt er denselben Sprung, war es ein echter Effekt.
+
+| Tag | Host (Proxmox) | HAOS-VM |
+|---|---|---|
+| 28.07.–09.08. | rund 34 % | rund 31 % |
+| 10.08. | 27,5 % | 25,5 % |
+| 11.08. | **5,2 %** | **8,8 %** |
+| 12.08. | 10,3 % | 9,3 % |
+| 13.08. | 15,0 % | 9,6 % |
+
+**Beide Reihen brechen gleichzeitig und gleich stark.** Damit ist die zweite
+Lesart aus 7.11 widerlegt: es ist kein Bezugsgrößenwechsel, sondern eine echte
+Entlastung am 10./11.08. Was dort entfernt oder repariert wurde, ist unbekannt
+und liegt außerhalb dieses Projekts.
+
+**Was daraus für die Zukunft folgt:** Der Host steigt seit dem Tiefpunkt
+deutlich schneller wieder an als die VM — 5,2 → 15,0 gegen 8,8 → 9,6. Die
+Rückkehr der Last kommt also überwiegend **nicht** aus Home Assistant. Wer die
+VM-Reihe als Maß für die Kosten dieses Projekts liest, liest richtig; wer die
+Host-Reihe dafür hält, schreibt uns fremde Last zu.
+
+### 7.14 Attributtest: die Deduplizierung hält — der Verdacht bestätigt sich nicht
+
+Geprüft an `sensor.pv_theoretische_leistung`, dem Sensor mit den meisten
+Attributen: 60 aufeinanderfolgende Zustände über 20 Minuten im 30-s-Takt.
+
+| | |
+|---|---|
+| Zustandszeilen | 60 |
+| **verschiedene Attributsätze** | **3** |
+| Wechsel 1 | `referenzstrang` „Modul 1" → „Modul 2" um 13:58:42 |
+| Wechsel 2 | Neustart 14:06 — neues Attributschema mit `traeger_straenge`, `anteil_klarhimmel`, `blindfleck` |
+
+Ein Verhältnis von 20:1 statt 1:1. Home Assistant schreibt den Attributsatz
+also **nicht** je Zyklus neu — die Hash-Deduplizierung greift. Die
+2-KiB-Lücke aus 7.11 erklärt sich damit **nicht** über breitere Zeilen.
+
+**Einschränkung, die dazugehört:** Das Messfenster hatte stabile Verschattung,
+`traeger_straenge` stand konstant auf 2. Bei Verschattungsübergängen ändert
+sich der Wert, und dann wird der ganze Satz neu geschrieben — inklusive der
+langen `blindfleck`-Zeichenkette. Die Churn-Rate ist also lastabhängig und an
+einem wechselhaften Tag höher als hier gemessen. Der Rat, veränderliche
+Diagnoseattribute aus hochtaktenden Sensoren herauszuziehen, bleibt richtig;
+er ist nur nicht die Erklärung der Lücke.
+
+**Die verbleibende Erklärung ist die einfachste:** Gemessen wurden 64 Entities.
+Die Anlage hat sehr viel mehr. 14 MiB/h sind Systemwachstum, 6959 Zeilen/h sind
+ein Ausschnitt daraus. Wer die Lücke schließen will, braucht die Gesamtzahl der
+Zeilen, nicht die Breite einer einzelnen.
+
+### 7.15 Vorlage: Wachstumssensor ersetzen statt reparieren
+
+`sensor.diagnose_recorder_wachstum` (Derivative) meldet 76 MB/d gegen gemessene
+174 MiB/24 h. Vorschlag des Betreibers, noch **nicht gebaut**: Differenz über
+24 Stunden statt Ableitung mit Glättung — robust, kein Glättungsparameter, und
+bei einer Größe, die sich täglich um Prozent ändert, völlig ausreichend.
+
+Neuer Sensor mit Präfix `diagnose_`, also vorlegen und warten.
+
+### 7.16 Ausgeführt am 13.08., 15:40–15:50 — ein Neustart, vier Freigaben
+
+| Freigabe | Umsetzung |
+|---|---|
+| Schritt 4 | 10001 `battery_status` und 10064 `operating_mode` in `const.py`; Blöcke erweitert statt Anfragen ergänzt |
+| 7.12 | `recorder/clear_statistics` auf `sensor.pv_unbekannt_stufenwert_1` |
+| Recorder | zwei Statistik-Helfer in `exclude` ergänzt, nichts überschrieben |
+| Dashboard | West/Ost-Beschriftung ins Deployment |
+
+**Blockerweiterungen statt zusätzlicher Anfragen — live geprüft vor dem Einbau:**
+
+| Gruppe | vorher | nachher | Probe (13.08., FC) |
+|---|---|---|---|
+| `mirror` | `Block(10002, 4)` | `Block(10000, 6)` | FC04 → `[0, 1, 0, 1320, 0, 0]` |
+| `clock` | `Block(10060, 2)` | `Block(10060, 5)` | FC03 → `[27261, 51544, 0, 0, 0]` |
+
+Beide Kombinationen antworten fehlerfrei; zusätzlich einzeln geprüft: FC04
+`10001:1` → `[1]`, FC03 `10064:1` → `[0]`. Damit ist **`operating_mode` = 0 =
+`self_consumption` unabhängig von der offiziellen Integration bestätigt** —
+genau die Sicherheitsprüfung, die TEIL 4 verlangt und die bisher an einer
+einzigen Quelle hing. Die sechs Sondenzeilen stehen in `tools/scan_log.jsonl`.
+
+**Zwei bewusste Einschränkungen:**
+
+1. `operating_mode` liegt in der Gruppe `clock` mit **Stundentakt**. Der Wert
+   kann bis zu 60 Minuten alt sein. Für einen Modus, der sich nur durch
+   Bedienung ändert, reicht das. Wer ihn frischer braucht: nach `limits`
+   (300 s) verschieben und dort `Block(10064, 1)` ergänzen — ebenfalls geprüft,
+   kostet dann eine zusätzliche Anfrage.
+2. `battery_status` erscheint als **nackte Zahl 0–3**. Eine Enum-Übersetzung
+   wäre eine Änderung am Lesepfad und ist nicht Teil dieser Freigabe. Die
+   Bedeutung steht in `docs/REGISTER.md` 3.1.
+
 ---
 
 ## TEIL 8 — Arbeitsregeln für die Sitzung

@@ -181,12 +181,19 @@ BLOCKS: Final[dict[str, tuple[Block, ...]]] = {
     "strings": (Block(10144, 32), Block(10205, 1), Block(10002, 4)),
     "limits": (Block(10036, 2), Block(10038, 2)),
     "grid": (Block(10199, 1), Block(10202, 1), Block(10208, 32)),
-    "clock": (Block(10060, 2, proven=False),),
+    # count=5 statt 2: 10064 (Betriebsmodus) liegt im selben Block und kostet
+    # damit keine zusaetzliche Anfrage. 10060:5 und 10060:6 sind beide live
+    # geprueft (13.08., FC03) - siehe FOLGEAUFTRAG 7.14.
+    "clock": (Block(10060, 5, proven=False),),
     "mirror": (
-        # count=4 statt 2: 10004/10005 (Fremdanlage) liegt im selben Block und
-        # blieb sonst ungelesen, wodurch die Entity dauerhaft unknown zeigte.
-        # 10002..10005 ist als gueltige Start/Count-Kombination geprueft.
-        Block(10002, 4),
+        # count=6 ab 10000 statt count=4 ab 10002: 10001 (Batteriestatus) liegt
+        # davor und kostet so keine zusaetzliche Anfrage. 10000:6 ist live
+        # geprueft (13.08., FC04, Antwort [0, 1, 0, 1320, 0, 0]).
+        #
+        # count=4 statt 2 war zuvor noetig, weil 10004/10005 (Fremdanlage) im
+        # selben Block liegt und sonst ungelesen blieb, wodurch die Entity
+        # dauerhaft unknown zeigte. Das gilt unveraendert weiter.
+        Block(10000, 6),
         Block(10008, 2),
         Block(10010, 2),
         Block(10012, 2),
@@ -322,8 +329,34 @@ REGISTERS: Final[tuple[Reg, ...]] = (
     # --- Geraetezeit, deaktiviert -------------------------------------------
     Reg("device_time", 10060, "u32", 1.0, "Geraetezeit", "clock", True,
         device_class="timestamp", state_class=None, icon="mdi:clock-outline"),
+    # Betriebsmodus. 0 = self_consumption, live am 13.08. bestaetigt (FC03
+    # 10060:5 -> [27261, 51544, 0, 0, 0], letztes Wort ist 10064).
+    #
+    # Zweck ist ausdruecklich die Sicherheitspruefung aus TEIL 4 des
+    # Folgeauftrags: dass das Geraet in self_consumption laeuft, haengt sonst
+    # allein an der offiziellen Integration. Ein zweiter, unabhaengiger
+    # Lesepfad prueft genau die Bedingung, die im Zweifel greifen soll.
+    #
+    # EINSCHRAENKUNG: Die Gruppe "clock" laeuft im Stundentakt. Der Wert kann
+    # also bis zu 60 Minuten alt sein. Fuer einen Modus, der sich nur durch
+    # Bedienung aendert, reicht das; wer ihn frischer braucht, verschiebt das
+    # Register in die Gruppe "limits" (300 s) und ergaenzt dort Block(10064, 1)
+    # - ebenfalls live geprueft. Das kostet dann eine zusaetzliche Anfrage.
+    Reg("operating_mode", 10064, "u16", 1.0, "Betriebsmodus", "clock", True,
+        state_class=None, icon="mdi:cog-outline"),
 
     # --- Redundanz zur offiziellen Integration, deaktiviert ------------------
+    # Batteriestatus. In der Herstellerdefinition als 0 Standby, 1 Laden,
+    # 2 Entladen, 3 Sleep gefuehrt; live am 13.08. mit 1 gelesen, waehrend das
+    # Geraet lud. certain=True, weil die Deutung aus der Herstellerdefinition
+    # stammt und sich mit dem Vorzeichen von 10008 deckt.
+    #
+    # Bewusst OHNE Zustandsuebersetzung: eine Enum-Abbildung waere eine
+    # Aenderung am Lesepfad, und der ist nicht Teil dieser Freigabe. Die
+    # Bedeutung der vier Zahlen steht in docs/REGISTER.md 3.1.
+    # state_class=None, weil ein Mittelwert ueber Zustandscodes sinnlos ist.
+    Reg("battery_status", 10001, "u16", 1.0, "Batteriestatus",
+        "mirror", True, state_class=None, icon="mdi:battery-sync"),
     Reg("pv_power_mb", 10002, "i32", 1.0, "PV-Leistung gesamt (Modbus)",
         "mirror", True, icon="mdi:solar-power", **_W),
     Reg("third_party_pv_mb", 10004, "i32", 1.0, "PV-Leistung Fremdanlage (Modbus)",
