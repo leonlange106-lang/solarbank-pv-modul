@@ -83,8 +83,18 @@ N-Typ Doppelglas **bifazial**. Vmp 33,18 V, Voc 39,90 V, Imp 15,07 A,
 Temperaturkoeffizient Voc/Vmp −0,250 %/°C.
 
 **Physische Reihenfolge auf dem Dach — belegt, nicht mehr offen:**
-PV1 ganz rechts, dann PV2, PV3, PV4 ganz links. Vom Betreiber per Foto
-bestätigt. Der Schatten wandert PV1 → PV4, also von rechts nach links.
+**PV1 ganz westlich, dann PV2, PV3, PV4 ganz östlich.** Der Schatten wandert
+PV1 → PV4, also von West nach Ost.
+
+> **Nie „rechts" oder „links" schreiben.** Die frühere Fassung sagte „PV1 ganz
+> rechts, PV4 ganz links" nach einem Betreiberfoto, dessen Blickrichtung nicht
+> festgehalten wurde — und ein Foto südwärts ausgerichteter Module entsteht
+> normalerweise mit Blick nach Norden, dann liegt West links. Rechts/links ist
+> ohne Standpunkt nie eindeutig, die Himmelsrichtung dagegen schon: Ein
+> Hindernis südlich der Reihe wirft morgens nach Westen und nachmittags nach
+> Osten, der Schatten wandert also über den Tag von West nach Ost. Weil PV1
+> zuerst einbricht (11:20) und PV4 zuletzt (14:24–15:36), **ist PV1 zwingend
+> das westlichste Modul.** Das ist gemessen, nicht berichtet.
 
 **AC-Ausgang auf 800 W begrenzt.** Nach Einbau einer Wieland-Dose sind
 2500 W geplant, Umstellung in der Anker-App.
@@ -572,6 +582,186 @@ Diese Punkte kann kein Agent klären:
   Grundlage. **Achtung:** Beide unterschätzen den Winterverlust strukturell,
   siehe Vorbehalt in TEIL 2.
 
-> Die physische Modulzuordnung ist **erledigt** — vom Betreiber per Foto
-> belegt, PV1 ganz rechts bis PV4 ganz links. Nicht erneut erfragen und kein
-> Abdeck-Experiment vorschlagen.
+> Die physische Modulzuordnung ist **erledigt** — PV1 ganz westlich bis PV4
+> ganz östlich, aus dem Verschattungsfahrplan hergeleitet (siehe TEIL 1). Nicht
+> erneut erfragen und kein Abdeck-Experiment vorschlagen.
+
+---
+
+## TEIL 7 — Nachtrag der Sitzung vom 13.08., 15:10
+
+Alles hier ist neu gegenüber Revision 2 und im Repo belegt.
+
+### 7.1 Register 10254: Identitätshypothese widerlegt
+
+Der alte Kommentar in `const.py` behauptete, 10254/10255 sei **dieselbe Größe**
+wie 10008/10009 mit umgekehrtem Vorzeichen. Das ist falsch.
+
+`tools/korrelation_10254.py` (neu) rechnet beide Registerpaare gegeneinander.
+Sie stehen in `tools/rohdaten/pv4_tag.jsonl` je Messpunkt im **selben
+Abfragezyklus** — Nichtgleichzeitigkeit scheidet als Erklärung also aus.
+1461 Messpunkte des 12.08.:
+
+| Regime | n | r | Steigung | Achsenabschnitt |
+|---|---|---|---|---|
+| Laden | 882 | **−0,982** | **−0,9572** | **−54,3 W** |
+| Entladen | 364 | −0,148 | −2,3849 | +694,5 W |
+
+Verhältnis `10254 / |10008|` beim Laden: Median 0,884, p10 0,796, p90 0,921.
+Exakt deckungsgleich: **1 von 882**.
+
+**Der Achsenabschnitt ist der eigentliche Befund, nicht der Median.** Die
+Regression beschreibt einen **festen Sockel von 54 W plus 4,3 % proportionalen
+Verlust** — die Signatur eines Wandlungspfads mit Eigenverbrauch:
+
+| 10008 | 10254 | Verhältnis |
+|---|---|---|
+| 200 W | 137 W | 0,69 |
+| 380 W | 309 W | 0,81 |
+| 1000 W | 903 W | 0,90 |
+| 2000 W | 1860 W | 0,93 |
+
+Die Spannweite p10–p90 ist damit keine Streuung, sondern die Lastabhängigkeit
+selbst. Richtung plausibel: **10008 misst vor, 10254 nach dem Verlust** — welche
+Seite genau, bleibt offen. Im Entladeregime bricht der Zusammenhang zusammen.
+
+`const.py` steht deshalb jetzt auf `certain=False`. Nur das Feld `certain`
+geändert, `unique_id` unberührt, kein Verlaufsbruch. **Noch nicht deployt.**
+
+### 7.2 Neuer offener Punkt: Wirkungsgrad lastabhängig statt konstant
+
+Beide Prognosen rechnen mit **0,95 konstant** —
+`input_number.nulleinspeisung_speicher_wirkungsgrad` und
+`sensor.pv_lernen_speicherwirkungsgrad` stehen beide auf 0,95.
+
+Die Messung sagt: bei 380 W sind es **0,81**, bei 200 W nur **0,69**.
+
+Unabhängige Gegenprobe vom 13.08.: SOC 63 % (13:26) auf 74 % (14:58), also
+11 Punkte = 0,561 kWh in 92 Minuten = **366 W in die Zellen**, bei rund 450 W
+gemeldeter Ladeleistung. Verhältnis **0,81** — genau der Regressionswert.
+
+Ein Modell mit 0,95 füllt den Speicher rechnerisch rund 17 % zu schnell; bei
+26 fehlenden SOC-Punkten sind das etwa **20 Minuten**. Nicht die ganze Stunde
+Abweichung, aber ein messbarer Anteil — und **unabhängig von der ungelernten
+Tagesform**. Die Regressionskoeffizienten aus 7.1 sind der Startwert.
+
+Betrifft `pv_lernprognose` **und** den alten Sensor.
+
+### 7.3 Neuer offener Punkt: ±65-kW-Ausschlag am Nulldurchgang
+
+An **8 von 1461 Punkten** passen High- und Lowword von 10254/10255 nicht
+zusammen (roh `0/65526` bzw. `65535/0`), jeweils am Nulldurchgang. Als INT32
+ergibt das Ausschläge von **±65 kW**, die ungefiltert im Recorder landen.
+Ursache ist ein nicht-atomares Update beider Wörter — bekanntes Modbus-Verhalten.
+
+0,5 % klingt harmlos, ist es nicht: ein einzelner 65-kW-Wert dominiert jedes
+`average_linear`-Fenster und jedes Riemann-Integral, in das er fällt.
+
+**Noch nicht gebaut**, weil es ein Eingriff in den Lesepfad ist. Vorgabe, wenn
+gebaut wird: Werte außerhalb von ±`max_charge_power` (3000 W, Register 10036)
+verwerfen, letzten guten Wert halten, und **die Zahl der Verwürfe als Attribut
+mitführen** — ein still filternder Filter versteckt irgendwann einen echten
+Defekt.
+
+### 7.4 Messreihe 3.1b, fortgeschrieben — die Prognose ist instabil
+
+| Uhrzeit | SOC | Laden | Prognose 100 % | Restzeit | nötig | Faktor |
+|---|---|---|---|---|---|---|
+| 13:26 | 63 % | 580 W | 16:40 | 3:14 h | — | — |
+| 13:47 | 66 % | 460 W | 15:28 | 1:41 h | 991 W | 2,2 |
+| 14:28 | 71 % | 420 W | 16:13 | 1:45 h | 846 W | 2,0 |
+| 14:38 | 72 % | 670 W | 16:07 | 1:30 h | 952 W | 1,4 |
+| 14:49 | 74 % | 380 W | 16:04 | 1:15 h | 1062 W | 2,8 |
+| 14:52 | 74 % | 290 W | 16:06 | 1:15 h | 1061 W | 3,7 |
+| **15:07** | **75 %** | **410 W** | **18:07** | **3:00 h** | **425 W** | **1,0** |
+
+Der Faktor ist reines Spiegelbild der Momentanladeleistung, kein Konvergenzmaß.
+**Um 15:07 springt die Prognose um zwei Stunden nach hinten** — von 16:06 auf
+18:07 in fünfzehn Minuten. Sie ist damit nicht nur optimistisch, sondern
+**instabil**; sie schoss erst rund eine Stunde zu früh und dann rund eine
+Stunde zu spät über das erwartete Fenster 17:00–17:15 hinaus.
+
+Die alte Prognose sagte um 15:07 „heute nur ca. 79 %, Höchststand gegen 16:52",
+sieht die 100 % also weiterhin gar nicht.
+
+**Der Messpunkt fehlt weiter:** wann die 100 % tatsächlich gefallen sind.
+`sensor.pv_lernen_speicher_prognose` steht im Recorder-`exclude`
+(`configuration.yaml` Zeile 63), die Prognosebahn ist also **nicht**
+rekonstruierbar — der SOC-Verlauf dagegen schon. Wer die Sitzung fortsetzt:
+den tatsächlichen 100-%-Zeitpunkt aus der SOC-Historie nachtragen.
+
+### 7.5 Was das 85-%-Ziel nicht leistet
+
+`sensor.prioritaetsladung_ziel_erreicht_um` (alt) und
+`sensor.pv_lernen_ziel_erreicht_um` (neu) zielen beide auf 85 %
+(`input_number.nulleinspeisung_prioritaetsladung_max_soc` = 85, der neue Sensor
+führt `ziel_soc: 85` als Attribut) und liegen **beide im Recorder** — 1748 bzw.
+171 Einträge in drei Stunden.
+
+Das verführt dazu, 3.1b darüber auszuwerten. **Das trägt nicht.** Auf einem
+Horizont von 90 Minuten bei stabiler Ladeleistung ist die lineare Extrapolation
+der alten Prognose ein gutes Verfahren — ihr Konstruktionsfehler wird dort gar
+nicht sichtbar. Das 85-%-Ziel prüft also nicht nur einen anderen Tagesabschnitt
+(mitten in der Verschattungsdelle statt nach der Erholung), sondern einen
+Horizont, auf dem sich beide Verfahren systematisch angleichen.
+
+### 7.6 Ergebnis von 3.5 — Abgleich `REGISTER.md` gegen `const.py`
+
+Vollständig durchgeführt, beide Richtungen, alle 40 Register und 25 Leseblöcke.
+`certain`-Flag und Sicherheitsspalte sind **ausnahmslos konsistent**, alle
+Skalierungen stimmen überein, 10250 als u32 ÷10 ist durch (live 5,1 kWh).
+
+**Doku hinter Code, noch nicht eingearbeitet:**
+
+1. **10156** — §3.7 führt es als „unbestimmt, nur zwei Zustände 370/380". Es ist
+   die Gerätetemperatur. Live geprüft: 10156 = 360, Highbyte(10252) = 0x24 = 36,
+   ×10 = 360. Und 360 ist ein **dritter** Wert — die „zwei Zustände" waren ein
+   110-Minuten-Fenster.
+2. **§4 „Nicht vorhanden"** listet Gerätetemperaturen als nicht verfügbar —
+   durch 1 widerlegt.
+3. **10254/10255 fehlt in der Registertabelle komplett.** Einzutragen als
+   **plausibel**, nicht sicher, mit den Zahlen aus 7.1.
+4. **10252** — Highbyte-Zusammenhang zu 10156 fehlt.
+5. **10168 / 10170 / 10172 / 10205** stehen als UINT16 in der Doku, der Code
+   liest **i16**. Der Code hat recht: ohne Vorzeichen wird −0,08 A zu 655,28 A.
+6. **§2 „Nachweislich lesbare Adressen"** listet 10001, 10004 und 10005 nicht,
+   obwohl §3.1 sie führt. Live: `10000+6 = [0, 1, 0, 1100, 0, 0]`, alle sechs
+   antworten.
+7. **§5** enthält noch „Offen bleibt: 10205 …" direkt über „Erledigt: auch
+   10205 ist ausgeschlossen".
+
+**Code hinter Doku, vom Betreiber freigegeben, einzubauen nach 3.4:**
+
+8. **10001 `battery_status`** — in der Doku sicher, im Code kein `Reg`. Live = 1
+   (Laden). Liegt im ohnehin gültigen Block 10000:6.
+9. **10064 `operating_mode`** — in der Doku sicher, im Code kein `Reg`. TEIL 4
+   verlangt vor Gerätearbeiten die Bestätigung von `self_consumption`; die hängt
+   derzeit allein an der offiziellen Integration. Ein unabhängiger Lesepfad
+   macht genau die Sicherheitsprüfung robust, die im Zweifel greifen soll.
+
+Beide kosten keine zusätzliche Modbus-Anfrage.
+
+**§7 der `REGISTER.md`** braucht denselben rechts/links-Durchgang wie TEIL 1,
+und der Abschnitt „Folge für die Verschattungshypothese" ist überholt: er
+verortet ein Hindernis „südsüdwestlich des Ostendes", während der Giebel des
+gegenüberliegenden Hauses mittig zwischen PV2 und PV3 steht. Die Messdaten des
+Abschnitts bleiben gültig, die Erklärung darüber nicht.
+
+### 7.7 Nebenbefund zum Verschattungsprofil
+
+Kurz vor 15:00 gemessen: PV1 28,8 V × 13,76 A = 396 W, PV2 28,9 V × 13,97 A =
+404 W, **PV3 31,5 V × 8,21 A = 259 W** — also 64 % mit der Doppelsignatur
+Verschattung. Der Fahrplan lässt PV3 um **14:37** frei werden. Das ist ein
+dritter Punkt in dieselbe Richtung wie die beiden in 3.7 vermerkten: **das
+Profil sagt zu wenig Verschattung voraus.** 10173–10175 weiterhin konstant null.
+
+### 7.8 Reihenfolge ab hier
+
+1. `REGISTER.md` Punkte 1–7 aus 7.6 einarbeiten, 10254 als **plausibel**
+2. rechts/links-Durchgang über `REGISTER.md` §7 und das Dashboard
+3. **3.4** Recorder- und Rechenlast messen — vor allen weiteren Entities
+4. dann 8 + 9 aus 7.6 einbauen, deployen, **ein** Neustart, SHA256-Gegenprüfung
+5. 7.3 (Plausibilitätsklammer) und 7.2 (lastabhängiger Wirkungsgrad) vorlegen
+
+Der Neustart für `const.py` aus 7.1 ist noch offen und wird mit Schritt 4
+gebündelt — nicht einzeln auslösen.

@@ -349,16 +349,38 @@ REGISTERS: Final[tuple[Reg, ...]] = (
     Reg("rated_energy_mb", 10250, "u32", 0.1, "Nennkapazitaet (Modbus)",
         "mirror", True, unit="kWh", device_class="energy_storage",
         state_class=None, icon="mdi:battery"),
-    # 10254/10255 ist die Batterieleistung mit umgekehrtem Vorzeichen zu
-    # 10008/10009: positiv = laden. Belegt ueber beide Betriebsregime -
-    # 11.08. abends beim Entladen -550..0 W, 12.08. morgens beim Laden
-    # +200..+1120 W gegen eine Batterieleistung von -1170..-270 W.
-    # 10254 ist das Highword und steht bei positiven Werten konstant auf 0,
-    # bei negativen auf 0xFFFF; der fruehere Befund "springt zwischen 0 und
-    # 65535" war genau dieser Vorzeichenwechsel.
+    # 10254/10255 traegt beim Laden das umgekehrte Vorzeichen zu 10008/10009.
+    # Das ist belegt. Die frueher hier behauptete IDENTITAET ("dieselbe Groesse,
+    # nur invertiert") ist es nicht - sie ist am 13.08. widerlegt worden.
+    #
+    # tools/korrelation_10254.py rechnet beide Registerpaare gegeneinander. Sie
+    # stehen in tools/rohdaten/pv4_tag.jsonl je Messpunkt im SELBEN Abfrage-
+    # zyklus, die Nichtgleichzeitigkeit scheidet als Erklaerung also aus.
+    # 1461 Messpunkte des 12.08.:
+    #
+    #   Laden (n=882)     r = -0.982   Steigung -0.9572   Abschnitt -54.3 W
+    #                     10254 / |10008|: Median 0.884, p10 0.796, p90 0.921
+    #                     exakt deckungsgleich: 1 von 882
+    #   Entladen (n=364)  r = -0.148   Steigung -2.3849 - kein Zusammenhang
+    #
+    # 10254 liegt beim Laden also systematisch rund 12 % unter |10008|, last-
+    # abhaengig zwischen 0,80 und 0,92. Das ist die Signatur eines Wandlungs-
+    # oder Pfadverlusts, nicht die von Messrauschen. Welche Seite vor und welche
+    # nach dem Verlust misst, ist offen. Im Entladeregime bricht der
+    # Zusammenhang vollstaendig zusammen.
+    #
+    # Dazu ein Dekodierproblem am Nulldurchgang: an 8 von 1461 Punkten passen
+    # High- und Lowword nicht zusammen (roh 0/65526 bzw. 65535/0), was als i32
+    # zu Ausschlaegen von +-65 kW fuehrt. Der fruehere Befund "springt zwischen
+    # 0 und 65535" war also nicht nur der Vorzeichenwechsel, sondern ein echter
+    # Inkonsistenzfall - er landet ungefiltert im Recorder.
+    #
+    # certain=False, bis eine Deutung belegt ist. Der Anzeigename bleibt, weil
+    # er die unique_id nicht beruehrt; die Unsicherheit steht in
+    # deutung_sicher, wo sie hingehoert - dasselbe Muster wie bei r10156.
     Reg("battery_charge_power_mb", 10254, "i32", 1.0,
         "Batterieladeleistung (Modbus)",
-        "mirror", True, icon="mdi:battery-sync", **_W),
+        "mirror", False, icon="mdi:battery-sync", **_W),
     Reg("cumulative_charge_mb", 10262, "u32", 0.1, "Ladeenergie kumuliert (Modbus)",
         "mirror", True, icon="mdi:battery-plus", **_KWH),
     Reg("cumulative_discharge_mb", 10264, "u32", 0.1,
