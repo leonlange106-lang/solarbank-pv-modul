@@ -1,0 +1,11 @@
+{
+  "domain": "solarbank_app",
+  "name": "Solarbank App",
+  "version": "0.1.0",
+  "documentation": "https://github.com/leonlange106-lang/solarbank-pv-modul",
+  "codeowners": [],
+  "dependencies": ["http", "frontend", "websocket_api", "recorder"],
+  "iot_class": "local_polling",
+  "integration_type": "service",
+  "requirements": []
+}
