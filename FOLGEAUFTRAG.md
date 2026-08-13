@@ -1188,7 +1188,7 @@ richtig, sie brauchen nur den Tageswechsel.
 Bereinigung sauber neu angelaufen — Stundenzeile 15:00 mit Mittel/Min/Max je
 **36**, nicht 360. Der Punkt aus 7.12 ist damit geschlossen.
 
-### 7.20 Die 85-%-Prognose konvergiert nicht — sie meldet „jetzt + Konstante"
+### 7.20 Die 85-%-Prognose rechnet in 15-Minuten-Schritten
 
 Gefragt war, ob die Prognose bei jedem stündlichen Forecast.Solar-Update
 springt. Die Antwort ist ja, aber der Verlauf von
@@ -1209,37 +1209,79 @@ springt nur in Stufen zwischen 30:00 und 45:00. Die vorhergesagte Uhrzeit
 wandert also **exakt eine Minute pro Minute mit der Uhr mit**. Zwischen zwei
 Neuberechnungen nähert sich die Prognose dem Ziel nicht an.
 
-**Zwei Lesarten, beide dokumentiert:**
+**Die Ursache ist belegt, nicht vermutet: Quantisierung auf 15 Minuten.** Ein
+sechster Messpunkt des Betreibers ergab eine Restzeit von exakt **1:00:00** —
+sechs Werte, sechs exakte Viertelstundenvielfache. Das Modell simuliert in
+15-Minuten-Schritten und gibt den Schrittindex aus; der alte Sensor tat das
+ebenso. Die Alternativlesart „echt konstante Restzeit" ist damit erledigt.
 
-1. **Quantisierte Restzeit.** Der Sensor rechnet `jetzt + Restzeit`, und die
-   Restzeit ist grob gerastert (30 / 45 min). Dafür spricht die Exaktheit:
-   physikalische Modelle liefern verrauschte Differenzen, keine Sekunde-genauen
-   Konstanten über 18 Messpunkte.
-2. **Echt konstante Restzeit.** Ladeleistung und SOC-Zuwachs entwickeln sich
-   gerade so, dass die Restzeit stehen bleibt. Möglich, erklärt aber die
-   Sekunde-genaue Gleichheit nicht.
+**Was daraus folgt — und was NICHT:**
 
-Lesart 1 ist die deutlich wahrscheinlichere. **Konsequenz:** Eine beobachtete
-„Konvergenz" der Prognose ist kein Qualitätsmerkmal, solange sie nur zwischen
-zwei Neuberechnungen gemessen wird. Das trifft die Bewertung in 7.5.
+Die Prognose meldet **nicht** „jetzt + Konstante". Sie rechnet durchgehend, nur
+mit 15-Minuten-Auflösung. Der Unterschied ist erheblich:
 
-**Die Prüfbedingung aus 7.4 ist nur zur Hälfte bestätigt.** Dort stand: „die
-Sprünge müssen immer kurz nach :05 liegen".
+- Konvergenz **ist** messbar, aber nicht feiner als 15 Minuten.
+- **Vergleichspunkte müssen mindestens 15 Minuten auseinanderliegen.** Sonst
+  misst man die Stufenbreite und nicht das Modell.
+- Zwei Punkte innerhalb derselben Stufe sagen nichts. Genau daran scheiterten
+  am 13.08. beide Versuche: die vermeintliche „erste Konvergenz" um 14:38
+  **und** der Gegentest, der sie widerlegen sollte.
 
-- Der Sprung um **15:07:17** (+16 min) liegt kurz nach :05 — Forecast.Solar
-  aktualisiert um 15:06. **Bestätigt.**
-- Der Sprung um **14:48:17** (−14 min) liegt **nicht** dort. Er hat eine
-  andere Ursache.
+Das ist die Korrektur zur Bewertung in 7.5: nicht „Konvergenz ist kein
+Qualitätsmerkmal", sondern **„Konvergenz unterhalb von 15 Minuten ist nicht
+messbar"**.
 
-**Es gibt also eine zweite Sprungquelle**, und sie ist unidentifiziert. Damit
-greift der Vorschlag aus 7.9 (`E_FS` langsam in den Pegel statt als
-Momentanmultiplikator) nur den einen Sprung ab — der zweite bliebe. Das gehört
-in die Bewertung, bevor 7.9 gebaut wird.
+**Die Prüfbedingung aus 7.4 ist bestätigt — es gibt nur eine Sprungquelle.**
+
+| | 14:47:17 | 14:48:17 |
+|---|---|---|
+| Restzeit | 0:45:00 | 0:30:00 |
+| Differenz der Restzeit | **exakt −15:00** | |
+| verstrichene Zeit | +1:00 | |
+| sichtbarer Sprung der Zielzeit | **−14 min** | |
+
+Der 14:48-Sprung ist ein gewöhnlicher Quantisierungsschritt: −15 min Restzeit
+plus eine verstrichene Minute ergeben die beobachteten −14 min. Eine frühere
+Fassung dieses Abschnitts las ihn als **zweite, unidentifizierte Sprungquelle**
+— das war ein Rechenfehler und ist gestrichen.
+
+**Für 7.9 heißt das:** Der Vorschlag (`E_FS` langsam in den Pegel statt als
+Momentanmultiplikator) deckt die einzige echte Sprungquelle ab. Der Vorbehalt
+„fängt nur einen von zweien" ist hinfällig — er hätte jemanden ein Phantom
+jagen lassen.
+
+**Offener Punkt, falls feinere Auflösung gewünscht ist:** nicht die
+Schrittweite verkleinern, sondern **linear innerhalb des Treffer-Schritts
+interpolieren**. Das kostet keine zusätzliche Rechenzeit. Änderung am
+Rechenweg — vorlegen, nicht bauen.
 
 **Gegenprobe am Ergebnis:** Die 85 % sind um **16:06** gefallen. Die letzte
-aufgezeichnete Prognose davor sagte 15:58 — **8 Minuten zu früh**. Als
-Fehlerbetrag der ungelernten Tagesform auf dem 85-%-Horizont brauchbar, aber
-nicht als Ersatz für den 100-%-Test aus 7.5.
+aufgezeichnete Prognose davor sagte 15:58 — **8 Minuten zu früh**, also
+innerhalb einer halben Stufenbreite. Als Fehlerbetrag der ungelernten Tagesform
+auf dem 85-%-Horizont brauchbar, aber nicht als Ersatz für den 100-%-Test aus
+7.5.
+
+### 7.21 Verschattungstag 13.08. abgeschlossen — 0,772 kWh Nachmittagsanteil
+
+Gegen 16:15 gemessen: Verschattungsverlust **0,0 W**, alle vier Stränge
+zwischen **330 und 346 W**. Die Reihe ist frei, der Tageswert wächst heute
+nicht mehr.
+
+| Größe | Wert 13.08. |
+|---|---|
+| `sensor.pv_verschattungsverlust_tag` | **0,772 kWh** |
+| `sensor.pv_theoretische_energie_tag` | 3,248 kWh |
+| Erfassungsbeginn | 13.08. gegen 14:00 (Anlage der Sensoren) |
+
+**Wie der Wert zu lesen ist:** Er ist ein **Teiltag ab 14:00**, aber er enthält
+die **gesamte Nachmittagsdelle** — die Verschattung endete um 15:55, der Zähler
+lief also über den vollständigen relevanten Zeitraum.
+
+- **Nicht** vergleichbar mit dem 14.08. oder einem anderen vollen Tag.
+- **Wohl** brauchbar als Größenordnung des Nachmittagsanteils.
+
+Die Vormittagsdelle (PV1 ab 11:20, PV2 ab 12:05) fehlt vollständig. Der erste
+vergleichbare Tageswert entsteht am **14.08.**
 
 ---
 
