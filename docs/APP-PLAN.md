@@ -174,14 +174,35 @@ custom_components/solarbank_app/
 
 ## 7. Umsetzungsstand
 
-| Schritt | Stand |
-|---|---|
-| Integration, Panel, statischer Pfad | gebaut |
-| M3-Designsystem, Shell, Navigation | gebaut |
-| Kachel mit Aufklapp-Historie | gebaut |
-| Ansichten Gesamtsystem, PV, Akku, Steuerung, Admin, Diagnose | gebaut |
-| Hausansicht als Platzhalter mit echter Flusslogik | gebaut |
-| Echtes Haus, echte Schattengeometrie | wartet auf Fotos und Maße |
+> **Korrektur.** Die erste Fassung dieser Tabelle führte alle Zeilen als
+> „gebaut", während die Dateien noch gar nicht existierten — ich hatte den
+> Zielzustand als Iststand geschrieben. Aufgefallen ist es beim Bau des
+> Datenlayers. Die Tabelle führt ab jetzt nur, was tatsächlich im Repo liegt.
+
+Stand 13.08.2026, 22:00 — alle sechs Module gebaut, Importgraph geprüft
+(12 von 12 Importen aufgelöst), per SHA256 deployt, ein Neustart.
+
+| Schritt | Stand | Beleg |
+|---|---|---|
+| Integration, Panel-Registrierung, statischer Pfad | **gebaut** | `__init__.py`, 9 Dateien SHA256-identisch deployt |
+| M3-Designsystem (Tokens, Typo, Form, Elevation, Motion, Komponenten) | **gebaut** | `m3.js`, `M3_CSS` |
+| Shell, Hash-Router, Navigation, Statuspunkt, Datenschnitt-Banner | **gebaut** | `app.js`, Element `solarbank-app` |
+| Datenlayer, Historie, Statistik, 60-s-Cache | **gebaut** | `data.js`, Klasse `Data` |
+| Kachel mit Aufklapp-Historie und Sparkline | **gebaut** | `tile.js`, `<sb-tile>` |
+| Die neun Ansichten | **gebaut** | `views.js`, `VIEWS` |
+| Hausansicht als Platzhalter, Fluss und Schatten echt | **gebaut** | `haus.js`, `buildHaus` |
+| Echtes Haus, echte Schattengeometrie | **offen** | wartet auf Fotos und Maße |
+
+**Noch nicht am echten Gerät erprobt:** Die Module sind statisch geprüft —
+Syntax, Exporte, Importgraph, Entity-IDs gegen die Live-Anlage. Wie sich die
+Oberfläche im Browser verhält, zeigt erst der erste Aufruf von `/solarbank`.
 
 **Werte sind erst ab dem 14.08. verwertbar** (`FOLGEAUFTRAG.md` 7.23) — die App
-zeigt bis dahin einen Hinweis darauf.
+blendet bis dahin ein Banner ein, das danach von selbst verschwindet.
+
+### Fundstelle für die nächste Sitzung
+
+Beim Bau kam eine Namenslücke heraus: `tile.js` liest
+`--md-sys-shape-corner-large`, die Spezifikation nennt `-l`. Gelöst durch
+Aliase in `M3_CSS`, sodass beide Schreibweisen auf denselben Wert zeigen. Wer
+neue Komponenten baut, kann beide verwenden.

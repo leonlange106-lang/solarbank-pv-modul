@@ -29,7 +29,6 @@ Eine Zeile in configuration.yaml:
 """
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 
@@ -39,6 +38,7 @@ from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.loader import async_get_integration
 
 from .const import (
     DOMAIN,
@@ -59,17 +59,23 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
 
-def _version() -> str:
+async def _version(hass: HomeAssistant) -> str:
     """Version aus dem Manifest, als Cache-Buster fuer die Modul-URL.
 
     Ohne Anhang liefert der Browser nach einem Update die alte Datei aus dem
     Cache aus. Das ist bei Custom Panels der mit Abstand haeufigste Grund
     dafuer, dass eine Aenderung scheinbar nicht ankommt.
+
+    Gelesen wird ueber den Integrations-Loader, NICHT ueber einen eigenen
+    Dateizugriff. Die erste Fassung tat Letzteres und HA hat es zu Recht
+    gemeldet: "Detected blocking call to open ... inside the event loop".
+    Ein synchroner Dateizugriff im Event-Loop blockiert alles andere, was HA
+    in diesem Moment tut. Der Loader haelt das Manifest ohnehin im Cache.
     """
     try:
-        manifest = Path(__file__).parent / "manifest.json"
-        return str(json.loads(manifest.read_text(encoding="utf-8")).get("version", "0"))
-    except (OSError, ValueError):  # pragma: no cover - Manifest fehlt nie im Betrieb
+        integration = await async_get_integration(hass, DOMAIN)
+        return str(integration.version or "0")
+    except Exception:  # noqa: BLE001 - darf das Setup nie kippen
         return "0"
 
 
@@ -89,7 +95,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         [StaticPathConfig(STATIC_URL, str(quelle), False)]
     )
 
-    modul_url = f"{STATIC_URL}/{PANEL_MODULE}?v={_version()}"
+    modul_url = f"{STATIC_URL}/{PANEL_MODULE}?v={await _version(hass)}"
 
     # require_admin=False: die Ansichten sind Anzeige und Bedienung fuer den
     # Betreiber. Die Steuerelemente rufen HA-Services auf, deren
