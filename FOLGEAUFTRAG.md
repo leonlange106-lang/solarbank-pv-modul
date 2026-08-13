@@ -1522,13 +1522,40 @@ Statistik-Helfer auf sensor.diagnose_recorder_datenbankgroesse
 > Nicht gebaut: neue Entity. Der alte Helfer bleibt bis dahin bestehen —
 > **seine Zahl ist aber nicht entscheidungstauglich**, das steht in 7.13.
 
-**3. `3.10` — Forecast.Solar-Geometrie** (Neigung 25° → 20°, Azimut 180° →
-188°). Bisher galt: erst nach 3.1, sonst müsse der Pegelschätzer mitten im
-Einschwingen neu justieren. **Diese Bedingung ist derzeit gegenstandslos**:
-`sensor.pv_lernen_lernstand` steht auf **0 von 4 eingeschwungen**, es gibt also
-nichts zu stören. Je früher die Geometrie stimmt, desto weniger falsch gelernte
-Tage sind zu überschreiben. Der Eingriff liegt in der Forecast.Solar-Integration,
-nicht im eigenen Code.
+**3. `3.10` — Forecast.Solar-Geometrie: ERLEDIGT am 13.08. um 21:22.**
+
+Die Sperre („erst nach 3.1") war **gegenstandslos**: `pv_lernen_lernstand`
+steht auf **0 von 4 eingeschwungen**, es gab nichts zu stören. Und es war das
+letzte Fenster vor Mitternacht, in dem eine Änderung an `E_FS` die saubere
+Basis nicht spaltet.
+
+| Parameter | vorher | jetzt |
+|---|---|---|
+| Neigung (`declination`) | 25° | **20°** |
+| Azimut (`azimuth`) | 180° | **188°** |
+| Modulleistung | 2000 W | 2000 W (unverändert, 4 × 500 Wp) |
+
+**Wo die Werte liegen — für die nächste Sitzung wichtig:** nicht in den
+Optionen der Integration, sondern in einem **Config-Subentry** vom Typ `plane`
+(`entry_id 01KZGJVER5W4XW3RKJCZ6H9DKR`, `subentry_id 01KZGJVER5VZKM4NZ92YQNWXRT`).
+Der Subentry-Titel führt die Werte mit und heißt jetzt `20° / 188° / 2000W` —
+er ist die schnellste Gegenprobe.
+
+HA verwendet die Konvention **0° = Nord, 180° = Süd**; 188° ist damit
+konsistent mit der in TEIL 1 dokumentierten Anlagenausrichtung.
+
+**Verifiziert 21:24, nach dem Reload der Integration:**
+
+| Sensor | Wert |
+|---|---|
+| `energy_production_today` | 9,563 kWh |
+| `energy_production_tomorrow` | **7,753 kWh** — erster Wert aus der neuen Geometrie |
+| `energy_production_today_remaining` | 0,0 kWh |
+| `power_production_now` | 0 W |
+
+Der Morgenwert 7,753 kWh ist der **Startpunkt für den 14.08.** Weicht der
+Tagesertrag stark davon ab, ist das ab jetzt eine Aussage über Wetter und
+Pegel — nicht mehr über eine falsche Geometrie.
 
 **4. Kleiner Nebenbefund, nicht angefasst.** `sensor.prioritaetsladung_ziel_erreicht_um`
 wirft jede Nacht `Received invalid sensor state: unknown … expected a valid
