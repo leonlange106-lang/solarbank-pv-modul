@@ -24,6 +24,65 @@ halbe Stunde auseinander:
 rechnet die Dashboard-Karte fuer den jeweils laufenden Tag aus — mit derselben
 NOAA-Formel, die auch `custom_components/pv_lernprognose/sonne.py` benutzt.
 
+## Die Geometrie, vom Betreiber am 13.08. erklaert
+
+Der Schattenwerfer ist der Giebel des gegenueberliegenden Hauses. Er wirft einen
+**A-foermigen Schatten**: die Spitze reicht am weitesten, die Dachschraegen
+laufen nach aussen ab.
+
+Zwei Angaben des Betreibers erklaeren das gemessene Muster vollstaendig:
+
+1. **Die Mitte der Modulreihe — zwischen PV2 und PV3 — liegt genau auf der Mitte
+   des Nachbarhauses.** Die Giebelspitze projiziert also auf die Reihenmitte.
+2. **Alle vier Module liegen nebeneinander in EINER Reihe, nicht uebereinander.**
+   Der Schattenrand kreuzt die Reihe damit an einem Punkt. Bei zwei
+   uebereinanderliegenden Reihen wuerde die Spitze Modulpaare erfassen; hier
+   wandert sie als schmaler Streifen ueber die Reihe.
+
+**Warum der Schatten im Sommer schmal ist:** Die Sonne steht hoch, der Schatten
+ist kurz, die Giebelspitze **streift** die Reihe nur. Verschattet wird ein
+schmaler Bereich um die Spitze, kein breiter Keil. Deshalb kann ein Modul
+einbrechen, waehrend der direkte Nachbar volle Leistung liefert.
+
+### Am Tagesverlauf des 13.08. validiert
+
+Der Verlauf aus der Dashboard-View *Verlaeufe* zeigt die Staffelung lueckenlos.
+Bis etwa 11:15 laufen alle vier Kurven deckungsgleich, dann wandert der Streifen
+von rechts nach links durch die Reihe:
+
+| Strang | Einbruch gemessen | Tiefpunkt | Fenster laut Profil |
+|---|---|---|---|
+| PV1 (ganz rechts) | 11:20–12:10 | rund 30 W | 11:31–12:29 |
+| PV2 | 12:05–13:20 | rund 55 W | 12:16–13:21 |
+| PV3 | ab 13:00 | 45 W | 13:08–14:37 |
+| PV4 (ganz links) | noch offen | — | 14:24–15:36 |
+
+Die vorhergesagten Fenster decken sich mit den gemessenen Einbruechen auf wenige
+Minuten. **Die Wanderrichtung ist PV1 nach PV4, also von rechts nach links.**
+
+Entscheidend ist die **Ueberlappung**: PV1 klettert ab 12:10 zurueck, waehrend
+PV2 bereits abgestuerzt ist. Genau das erwartet man von einem schmalen
+wandernden Streifen — und genau das schliesst einen breiten Keil aus, der
+mehrere Module gleichzeitig deckeln wuerde.
+
+**Eine frueher notierte These ist damit widerlegt:** Es sind nicht zwei
+unabhaengige Schattenwerfer. Eine einzige Giebelgeometrie erklaert sowohl die
+Staffelung heute als auch den monotonen Abfall vom 11.08. um 14:40
+(PV1 100 %, PV2 99 %, PV3 65 %, PV4 14 %) — da stand die Spitze bereits ueber PV4.
+
+### Was das Azimutprofil NICHT leistet
+
+Der Azimutbezug faengt die **Uhrzeitverschiebung** ueber die Jahreszeiten auf,
+nicht die **Schattenlaenge**. Im Winter steht die Sonne tiefer, der Schatten wird
+laenger, und der A-Schatten streift die Reihe nicht mehr nur mit der Spitze,
+sondern legt sich mit den Schenkeln darueber. Dann sind mehrere Module
+**gleichzeitig** betroffen statt nacheinander — eine andere Verlustcharakteristik
+als die heute gemessene.
+
+Fuer die Ausbauentscheidung heisst das: Die Sommermessung unterschaetzt den
+Winterverlust strukturell. Ein Profil aus Augustdaten laesst sich ueber den
+Azimut auf September fortschreiben, aber **nicht** auf Dezember.
+
 ## Datengrundlage
 
 | Quelle | Zeitraum | brauchbare Punkte |
