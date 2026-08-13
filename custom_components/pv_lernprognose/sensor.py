@@ -309,18 +309,28 @@ class TruebungSensor(Basis):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        live = self._d.get("truebung_live")
+        zustand = self._d.get("truebung_live_quelle")
         return {
-            "live": self._d.get("truebung_live"),
+            "quelle": "Messung" if live is not None else f"Prognose, {zustand}",
+            "live": live,
+            "live_zustand": zustand,
             "aus_prognose": self._d.get("truebung_prognose"),
             "quelle_prognose": self._d.get("truebung_quelle"),
+            "tagesform_fach_gelernt": self._d.get("form_direkt_gemessen"),
             "moment_klar": self._d.get("klar"),
             "moment_zensiert": self._d.get("zensiert"),
             "verfahren": (
                 "Gemessene Leistung geteilt durch Klarhimmelerwartung "
                 "EINSCHLIESSLICH gelernter Verschattung. Damit misst sie "
                 "Bewoelkung statt Schatten - der Fehler, an dem das alte k "
-                "scheiterte. Fuer die Zukunft blendet sie mit 90 Minuten "
-                "Halbwertszeit auf die Wetterprognose ueber."
+                "scheiterte. Das traegt aber nur, wenn die Tagesform fuer "
+                "das aktuelle Azimutfach gelernt ist; sonst enthaelt die "
+                "Erwartung keine Verschattung und der Schatten liefe wieder "
+                "als Bewoelkung ein. Deshalb ist die Messung je Azimutfach "
+                "gesperrt, bis das Fach eingeschwungen ist - dann gilt die "
+                "Wetterprognose. Fuer die Zukunft blendet sie mit 120 "
+                "Minuten Halbwertszeit ohnehin auf die Prognose ueber."
             ),
         }
 

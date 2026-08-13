@@ -352,7 +352,9 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._letzter_takt = jetzt
 
         # --- Truebung -----------------------------------------------------
-        truebung_live = self._truebung_live(p_klar, zensiert)
+        truebung_live, truebung_live_quelle = self._truebung_live(
+            p_klar, zensiert, form_direkt
+        )
         truebung_prognose, truebung_quelle = self._truebung_prognose(
             jetzt_utc, zeitzone, fs_rest, gain, form
         )
@@ -416,6 +418,7 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "truebung_live": truebung_live,
             "truebung_prognose": truebung_prognose,
             "truebung_quelle": truebung_quelle,
+            "truebung_live_quelle": truebung_live_quelle,
             "gain": gain,
             "gain_gelernt": gain_gelernt,
             "text": text,
@@ -492,22 +495,44 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------------------
     # Truebung
     # ------------------------------------------------------------------
-    def _truebung_live(self, p_klar: float, zensiert: bool) -> float | None:
+    def _truebung_live(
+        self, p_klar: float, zensiert: bool, form_gelernt: bool
+    ) -> tuple[float | None, str]:
         """Bewoelkungsindex aus der aktuellen Messung.
 
-        Nur wenn die Erwartung gross genug ist, um ein Verhaeltnis zu
-        tragen, und nur wenn nicht abgeregelt wird. Ohne die Zensurpruefung
-        wuerde bei vollem Speicher die gedrosselte Leistung als Bewoelkung
-        gelesen - und die Prognose fuer den Rest des Tages entsprechend
-        heruntergezogen. Genau der Fehler, an dem das alte k litt, nur mit
-        anderer Ursache.
+        Drei Sperren, jede gegen eine andere Art von Fehlmessung:
+
+        1. `zensiert` - bei vollem Speicher drosselt die Nulleinspeisung,
+           und die gedrosselte Leistung wuerde als Bewoelkung gelesen.
+
+        2. `form_gelernt` - und das ist die wichtigste. Die Truebung ist
+           definiert als Messung geteilt durch Klarhimmelerwartung
+           EINSCHLIESSLICH Verschattung. Steht die Tagesform fuer das
+           aktuelle Azimutfach aber noch auf 1,0, enthaelt die Erwartung
+           gar keine Verschattung - und der Schatten landet wieder in der
+           Truebung. Das ist exakt der Konstruktionsfehler des alten k,
+           nur eine Ebene tiefer, und mit der Blend-Halbwertszeit wuerde
+           er ueber den ganzen Resttag fortgetragen. Am 13.08.2026 live
+           beobachtet: klarer Himmel, Giebelschatten auf Modul 3, live
+           0,608 gegen 0,907 aus der Prognose.
+
+           Die Sperre gilt je Azimutfach, nicht fuer den ganzen Tag.
+           Sobald ein Fach eingeschwungen ist, wird dort wieder live
+           gemessen - der Rest des Tages bleibt gesperrt, bis er es
+           ebenfalls ist.
+
+        3. Zu kleine Erwartung traegt kein Verhaeltnis.
         """
-        if zensiert or p_klar < 120.0 or len(self._puffer) < 5:
-            return None
+        if zensiert:
+            return None, "gesperrt: Messung abgeregelt"
+        if not form_gelernt:
+            return None, "gesperrt: Tagesform fuer dieses Azimutfach ungelernt"
+        if p_klar < 120.0 or len(self._puffer) < 5:
+            return None, "noch keine belastbare Messung"
         letzte = list(self._puffer)[-5:]
         mittel = sum(w for _, w, _ in letzte) / len(letzte)
         wert = mittel / p_klar
-        return min(max(wert, TRUEBUNG_MIN), TRUEBUNG_MAX)
+        return min(max(wert, TRUEBUNG_MIN), TRUEBUNG_MAX), "Messung"
 
     def _geometrie_tagessumme(
         self, tag: dt.date, form: dict[int, float]

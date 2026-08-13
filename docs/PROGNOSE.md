@@ -1063,3 +1063,141 @@ n_werktag    31                n_wochenende   12
 
 Die vier vorbelegten Tage aus `startseite_last` wurden beim Laden verworfen; im
 gleitenden Fenster steht nur noch der laufende eigene Tag.
+
+## 20. Die Trübung war blind, solange die Tagesform es war
+
+Nachtrag vom 13.08.2026, im Live-Betrieb gefunden. Der Befund ist ein
+Konstruktionsfehler, kein Messfehler.
+
+### Der Befund
+
+Klarer Himmel, Sonnenazimut rund 176°:
+
+```
+sensor.pv_lernen_truebung
+  live            = 0,608
+  aus_prognose    = 0,907        (Forecast.Solar mal Pegel)
+  moment_klar     = true
+  moment_zensiert = false
+
+sensor.pv_lernen_tagesform = 1,0   (gelernt: false)
+```
+
+Die 0,608 sind **keine Bewölkung**, sondern der Giebelschatten — Modul 3 lag bei
+52 W gegen 409 und 429 W der unverschatteten Nachbarn.
+
+Abschnitt 11 behauptet: *„Weil die Verschattung jetzt in der Tagesform steckt,
+misst die Trübung endlich das, wofür `k` gedacht war."* Dieser Schutz greift
+aber **erst, wenn die Tagesform gelernt ist**. Steht sie auf 1,0, enthält die
+Klarhimmelerwartung keine Verschattung — und der Schatten läuft wieder als
+Bewölkung ein. Es ist derselbe Konstruktionsfehler wie beim alten `k`, nur eine
+Ebene tiefer, und die Blend-Halbwertszeit trägt ihn über den ganzen Resttag fort
+— auch über 15:30 hinaus, wo der Schatten laut Profil endet.
+
+### Die Sperre
+
+Die Live-Messung der Trübung ist gesperrt, solange die Tagesform für das
+**aktuelle Azimutfach** nicht als gelernt gilt. Dann fällt die Trübung auf
+`aus_prognose` zurück, die mit 0,907 deutlich näher an der Wahrheit lag.
+
+Die Entscheidung fällt **je Azimutfach**, nicht für den Tag: sobald ein Fach
+seine vier Tage und acht Proben hat, wird dort wieder live gemessen, während
+benachbarte Fächer noch gesperrt bleiben. Sonst bliebe die Trübung unnötig lange
+blind.
+
+Sichtbar im Attribut:
+
+```
+quelle        = "Prognose, gesperrt: Tagesform fuer dieses Azimutfach ungelernt"
+live          = null
+live_zustand  = "gesperrt: Tagesform fuer dieses Azimutfach ungelernt"
+aus_prognose  = 0,956
+tagesform_fach_gelernt = false
+```
+
+Damit gibt es jetzt drei Sperren für die Live-Trübung, jede gegen eine andere
+Fehlmessung: Abregelung (Speicher voll), ungelernte Tagesform (Schatten), und
+zu kleine Erwartung (Rauschen).
+
+### Rückwärtsschaden: keiner, und zwar aus zwei Gründen
+
+Die Frage war, ob verschattete Messpunkte bereits als zu niedriger Pegel gelernt
+wurden und die Verschattung damit **doppelt** gezählt würde, sobald die Tagesform
+greift.
+
+**Erstens: strukturell ausgeschlossen.** Die Vorhersage für den Resttag ist
+
+```
+Energie = Σ (gain · POA · Form) · Trübung
+        = Σ (gain · POA · Form) · Pegel · E_FS / Σ (gain · POA · Form)
+        = Pegel · E_FS
+```
+
+Die Tagesform **kürzt sich vollständig heraus**. Sie verteilt Energie innerhalb
+des Tages um, aber die Tagessumme hängt allein am Pegel und an der
+Forecast.Solar-Prognose. Eine Doppelzählung ist damit unmöglich, ganz gleich in
+welchem Lernzustand die Form beim Messen des Pegels war.
+
+Dasselbe gilt für den Pegel selbst:
+
+```
+Pegel = E_gemessen · G_gesamt / (G_offen · E_prognose)
+```
+
+Beide geometrischen Größen tragen die Form. Verteilt sich die Verschattung
+ähnlich über das unzensierte Fenster wie über den ganzen Tag, kürzt sie sich
+auch hier.
+
+**Zweitens: nachgemessen.** An den vier Backtest-Tagen, einmal mit gelernter
+Form und einmal mit Form = 1,0:
+
+```
+Tag          Form gelernt   Form = 1,0    Diff
+2026-08-09       1,662         1,614      −0,048
+2026-08-10       1,487         1,466      −0,020
+2026-08-11       1,275         1,234      −0,041
+2026-08-12       1,373         1,353      −0,020
+Median           1,430         1,410      −0,020   (−1,4 %)
+```
+
+Der Restfehler von **1,4 %** ist genau der oben genannte Zweiter-Ordnung-Term.
+Zum Vergleich: die Streuung des Pegels von Tag zu Tag beträgt 1,26 bis 1,66,
+also rund **±14 %**. Der Effekt der ungelernten Form ist damit eine Größenordnung
+kleiner als die Unsicherheit, die der Pegel ohnehin trägt.
+
+**Drittens: im persistierten Lernstand liegt gar nichts.** Zum Zeitpunkt des
+Befunds:
+
+```
+pegel.tage = {}      eta.tage = {}
+```
+
+Die Integration lief erst seit dem Mittag desselben Tages; kein einziger
+Tageswert war abgeschlossen. Es gab also nichts zu bereinigen.
+
+**Konsequenz:** keine Bereinigung, keine Sonderbehandlung, kein zusätzlicher
+Mechanismus. Eine Maschinerie gegen einen 1,4-Prozent-Effekt zu bauen, während
+die Größe selbst ±14 % streut, würde Genauigkeit vortäuschen, die es nicht gibt.
+Der Wert des laufenden Tages wird normal abgeschlossen.
+
+### Der Formschätzer bleibt unangetastet
+
+Dort ist das Lernen aus verschatteten Punkten der Zweck der Übung — genau daraus
+entsteht die Tagesform. Er wurde nicht geändert.
+
+### Was die Live-Beobachtung über die Schattenform sagt
+
+Zwei Korrekturen aus dem Betrieb, die die Annahmen von Abschnitt 12 stützen:
+
+- Der Schatten ist ein **schmaler wandernder Streifen**, keine breite Keilspitze.
+  Innerhalb von 20 Minuten wanderte der Tiefpunkt von PV2 auf PV3, während PV4
+  direkt daneben bei voller Leistung blieb. Ursache ist weiterhin das
+  gegenüberliegende Haus, aber eher eine schräge Traufkante als der First.
+- Modulzuordnung: PV1 ganz rechts, PV2, PV3, PV4 ganz links. Der Streifen wandert
+  über den Nachmittag von rechts nach links.
+
+Für die Indizierung nach Sonnenazimut ist das eine **gute** Nachricht: ein
+schmaler Streifen ist eine scharfe Funktion des Azimuts und genau das, was
+5-Grad-Fächer auflösen können. Eine breite, langsam veränderliche Keilspitze wäre
+schwerer zu treffen gewesen. Es unterstreicht aber auch, warum die Fächer fein
+bleiben müssen — bei 10 Grad würde der Streifen über zwei Fächer verschmiert.
