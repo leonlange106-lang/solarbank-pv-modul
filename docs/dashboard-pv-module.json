@@ -1,0 +1,2078 @@
+{
+  "kiosk_mode": {
+    "mobile_settings": {
+      "hide_header": true,
+      "custom_width": 812
+    }
+  },
+  "views": [
+    {
+      "title": "Übersicht",
+      "path": "uebersicht",
+      "icon": "mdi:view-dashboard",
+      "type": "sections",
+      "max_columns": 6,
+      "dense_section_placement": true,
+      "badges": [
+        {
+          "type": "entity",
+          "entity": "sensor.solarbank_diagnose_gesamtzustand",
+          "name": "Zustand",
+          "show_name": true,
+          "show_state": true
+        },
+        {
+          "type": "entity",
+          "entity": "sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus",
+          "name": "PV gesamt",
+          "show_name": true,
+          "show_state": true
+        },
+        {
+          "type": "entity",
+          "entity": "sensor.anker_solix_solarbank_4_e5000_pro_441_soc",
+          "name": "Speicher",
+          "show_name": true,
+          "show_state": true
+        },
+        {
+          "type": "entity",
+          "entity": "sun.sun",
+          "name": "Sonne",
+          "show_name": true,
+          "show_state": true
+        }
+      ],
+      "sections": [
+        {
+          "type": "grid",
+          "column_span": 6,
+          "cards": [
+            {
+              "type": "custom:mushroom-chips-card",
+              "alignment": "center",
+              "grid_options": {
+                "columns": "full"
+              },
+              "chips": [
+                {
+                  "type": "template",
+                  "entity": "sensor.solarbank_diagnose_gesamtzustand",
+                  "icon": "{% set s = states('sensor.solarbank_diagnose_gesamtzustand') %}{{ 'mdi:check-circle' if s == 'ok' else ('mdi:alert' if s == 'warnung' else 'mdi:alert-octagon') }}",
+                  "icon_color": "{% set s = states('sensor.solarbank_diagnose_gesamtzustand') %}{{ 'green' if s == 'ok' else ('orange' if s == 'warnung' else 'red') }}",
+                  "content": "{% set s = states('sensor.solarbank_diagnose_gesamtzustand') %}{{ 'Zustand ok' if s == 'ok' else ('Warnung' if s == 'warnung' else 'Störung') }}",
+                  "tap_action": {
+                    "action": "navigate",
+                    "navigation_path": "/pv-module/diagnose"
+                  }
+                },
+                {
+                  "type": "template",
+                  "entity": "sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus",
+                  "icon": "mdi:solar-power-variant",
+                  "icon_color": "amber",
+                  "content": "{{ states('sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus') | float(0) | round(0) }} W",
+                  "tap_action": {
+                    "action": "more-info"
+                  }
+                },
+                {
+                  "type": "template",
+                  "entity": "sensor.anker_solix_solarbank_4_e5000_pro_441_soc",
+                  "icon": "mdi:home-battery",
+                  "icon_color": "{% set s = states('sensor.anker_solix_solarbank_4_e5000_pro_441_soc') | float(0) %}{{ 'red' if s < 20 else ('orange' if s < 40 else 'green') }}",
+                  "content": "{{ states('sensor.anker_solix_solarbank_4_e5000_pro_441_soc') }} %",
+                  "tap_action": {
+                    "action": "more-info"
+                  }
+                },
+                {
+                  "type": "template",
+                  "entity": "binary_sensor.pv_abregelung_erkannt",
+                  "icon": "mdi:arrow-collapse-down",
+                  "icon_color": "{{ 'orange' if is_state('binary_sensor.pv_abregelung_erkannt','on') else 'grey' }}",
+                  "content": "{{ 'Abregelung' if is_state('binary_sensor.pv_abregelung_erkannt','on') else 'frei' }}",
+                  "tap_action": {
+                    "action": "more-info"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "custom:navbar-card",
+              "desktop": {
+                "position": "left",
+                "show_labels": true,
+                "min_width": 1024
+              },
+              "mobile": {
+                "show_labels": true
+              },
+              "styles": ":host { --navbar-background: var(--card-background-color); --navbar-route-icon-size: 22px; }",
+              "routes": [
+                {
+                  "url": "/pv-module/uebersicht",
+                  "icon": "mdi:view-dashboard",
+                  "label": "Übersicht"
+                },
+                {
+                  "url": "/pv-module/module",
+                  "icon": "mdi:solar-panel",
+                  "label": "Module"
+                },
+                {
+                  "url": "/pv-module/verschattung",
+                  "icon": "mdi:weather-sunset",
+                  "label": "Schatten"
+                },
+                {
+                  "url": "/pv-module/verlaeufe",
+                  "icon": "mdi:chart-line",
+                  "label": "Verläufe"
+                },
+                {
+                  "url": "/pv-module/diagnose",
+                  "icon": "mdi:heart-pulse",
+                  "label": "Diagnose"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Anlagenzustand",
+              "heading_style": "title",
+              "icon": "mdi:heart-pulse",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "custom:mushroom-template-card",
+              "entity": "sensor.solarbank_diagnose_gesamtzustand",
+              "icon": "{% set s = states('sensor.solarbank_diagnose_gesamtzustand') %}{% if s == 'ok' %}mdi:check-circle{% elif s == 'warnung' %}mdi:alert{% elif s == 'stoerung' %}mdi:alert-octagon{% else %}mdi:help-circle{% endif %}",
+              "icon_color": "{% set s = states('sensor.solarbank_diagnose_gesamtzustand') %}{% if s == 'ok' %}green{% elif s == 'warnung' %}orange{% elif s == 'stoerung' %}red{% else %}grey{% endif %}",
+              "primary": "{% set s = states('sensor.solarbank_diagnose_gesamtzustand') %}{% if s == 'ok' %}Alles in Ordnung{% elif s == 'warnung' %}Warnung{% elif s == 'stoerung' %}Störung{% else %}Zustand unbekannt{% endif %}",
+              "secondary": "{% set b = state_attr('sensor.solarbank_diagnose_gesamtzustand','befunde') %}{% if b %}{{ b | length }} Befund{{ 'e' if b | length > 1 else '' }} — Liste darunter. Antippen führt zu den zehn Prüfungen.{% else %}Alle zehn Prüfungen grün. Antippen führt zu den Einzelbefunden.{% endif %}",
+              "multiline_secondary": true,
+              "tap_action": {
+                "action": "navigate",
+                "navigation_path": "/pv-module/diagnose"
+              },
+              "grid_options": {
+                "columns": "full",
+                "rows": 2
+              }
+            },
+            {
+              "type": "markdown",
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "sensor.solarbank_diagnose_gesamtzustand",
+                  "state_not": "ok"
+                }
+              ],
+              "card_mod": {
+                "style": "ha-card { border: 2px solid rgba(229,57,53,0.75); background: rgba(229,57,53,0.10); }"
+              },
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "{% set b = state_attr('sensor.solarbank_diagnose_gesamtzustand','befunde') %}{% if b %}**Was klemmt:**\n{% for x in b %}\n- {{ x }}\n{% endfor %}{% else %}Zustand nicht `ok`, aber keine Befundliste vorhanden.{% endif %}"
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "**Störung** heißt: eine der Prüfungen 1, 2, 3, 4, 5, 7 oder 9 hat angeschlagen — die Daten sind nicht mehr vertrauenswürdig. **Warnung** kommt aus 6, 8 oder 10 und bedeutet einen Widerspruch, der beobachtet gehört. Die Befundliste steht im Attribut `befunde` und wird nicht doppelt gerechnet."
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Die vier Stränge jetzt",
+              "heading_style": "title",
+              "icon": "mdi:solar-panel",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Reihenfolge wie auf dem Dach, links im Bild ist PV4. Vom Betreiber am 13.08. per Foto bestätigt — eine Himmelsrichtung ist damit nicht belegt.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_4_leistung",
+              "name": "PV4 · ganz links",
+              "icon": "mdi:solar-panel",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_3_leistung",
+              "name": "PV3",
+              "icon": "mdi:solar-panel",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_2_leistung",
+              "name": "PV2",
+              "icon": "mdi:solar-panel",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_1_leistung",
+              "name": "PV1 · ganz rechts",
+              "icon": "mdi:solar-panel",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "Alle vier Leistungen sind **exakt**. Modul 4 hat keine eigenen Register — sein Wert ist die Differenz aus Gesamtleistung und den drei gemessenen Strängen, also eine Rechnung aus zwei Messgrößen und keine Schätzung. Geschätzt sind bei Modul 4 nur Spannung und Strom, nachzulesen unter **Module**."
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Anlage",
+              "heading_style": "title",
+              "icon": "mdi:home-lightning-bolt",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus",
+              "name": "PV gesamt (Modbus)",
+              "icon": "mdi:solar-power-variant",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.anker_solix_solarbank_4_e5000_pro_441_solarstrom",
+              "name": "PV gesamt (offiziell)",
+              "icon": "mdi:cloud-check-outline",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.anker_solix_solarbank_4_e5000_pro_441_soc",
+              "name": "Speicher",
+              "icon": "mdi:home-battery",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_ac_ausgangslimit",
+              "name": "AC-Ausgangslimit",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_ac_ausgangsstrom",
+              "name": "AC-Ausgangsstrom",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_maximale_ladeleistung",
+              "name": "Max. Ladeleistung",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.pv_abregelung_erkannt",
+              "name": "Abregelung erkannt",
+              "icon": "mdi:arrow-collapse-down",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_drosselung_leistung",
+              "name": "Drosselung jetzt",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_drosselung_tag",
+              "name": "Drosselung heute",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "**Abregelung erkannt** kommt aus dem Arbeitspunkt der MPP-Tracker, über 0,92 mal Voc Richtung Leerlauf. **Drosselung** kommt aus dem Template-Helfer und rechnet Prognose minus Ist. Zwei unabhängige Wege zur selben Frage — widersprechen sie sich, ist das ein Befund und kein Anzeigefehler.\n\nDas AC-Limit steht auf 800 W. Nach einer Umstellung auf 2500 W verschiebt sich die Schwelle, ab der Abregelung überhaupt auftreten kann. Verläufe davor und danach sind nicht unmittelbar vergleichbar."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Module",
+      "path": "module",
+      "icon": "mdi:solar-panel",
+      "type": "sections",
+      "max_columns": 6,
+      "dense_section_placement": true,
+      "badges": [
+        {
+          "type": "entity",
+          "entity": "sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus",
+          "name": "PV gesamt",
+          "show_name": true,
+          "show_state": true
+        },
+        {
+          "type": "entity",
+          "entity": "sensor.solarbank_diagnose_gesamtzustand",
+          "name": "Zustand",
+          "show_name": true,
+          "show_state": true
+        }
+      ],
+      "sections": [
+        {
+          "type": "grid",
+          "column_span": 6,
+          "cards": [
+            {
+              "type": "custom:navbar-card",
+              "desktop": {
+                "position": "left",
+                "show_labels": true,
+                "min_width": 1024
+              },
+              "mobile": {
+                "show_labels": true
+              },
+              "styles": ":host { --navbar-background: var(--card-background-color); --navbar-route-icon-size: 22px; }",
+              "routes": [
+                {
+                  "url": "/pv-module/uebersicht",
+                  "icon": "mdi:view-dashboard",
+                  "label": "Übersicht"
+                },
+                {
+                  "url": "/pv-module/module",
+                  "icon": "mdi:solar-panel",
+                  "label": "Module"
+                },
+                {
+                  "url": "/pv-module/verschattung",
+                  "icon": "mdi:weather-sunset",
+                  "label": "Schatten"
+                },
+                {
+                  "url": "/pv-module/verlaeufe",
+                  "icon": "mdi:chart-line",
+                  "label": "Verläufe"
+                },
+                {
+                  "url": "/pv-module/diagnose",
+                  "icon": "mdi:heart-pulse",
+                  "label": "Diagnose"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Leistung je Strang",
+              "heading_style": "title",
+              "icon": "mdi:flash",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Alle vier exakt. Modul 4 ist die Differenz aus zwei Messgrößen, keine Schätzung.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_4_leistung",
+              "name": "PV4 · ganz links",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_3_leistung",
+              "name": "PV3",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_2_leistung",
+              "name": "PV2",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_1_leistung",
+              "name": "PV1 · ganz rechts",
+              "grid_options": {
+                "columns": 6
+              }
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Leistungsanteil",
+              "heading_style": "title",
+              "icon": "mdi:scale-balance",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Die einzige Kennzahl, die alle vier Module direkt vergleichbar macht. 100 % heißt: verhält sich wie die Nachbarn.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_4_leistungsanteil",
+              "name": "PV4 · ganz links",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_3_leistungsanteil",
+              "name": "PV3",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_2_leistungsanteil",
+              "name": "PV2",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_1_leistungsanteil",
+              "name": "PV1 · ganz rechts",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "Leistung des Strangs im Verhältnis zum Median der übrigen drei. Für **alle vier exakt**, weil nur exakte Größen eingehen. Den älteren **Stromanteil** gibt es weiterhin für Modul 1–3 — er steht unter **Verläufe**. Für Modul 4 gibt es bewusst keinen Stromanteil: dessen Strom ist geschätzt und bei Verschattung um rund 10 % zu hoch, die Verschattung würde also zu spät erkannt."
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Verschattung",
+              "heading_style": "title",
+              "icon": "mdi:weather-cloudy",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.pv_modul_4_verschattet",
+              "name": "PV4 · ganz links",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.pv_modul_3_verschattet",
+              "name": "PV3",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.pv_modul_2_verschattet",
+              "name": "PV2",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.pv_modul_1_verschattet",
+              "name": "PV1 · ganz rechts",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "Modul 1–3 urteilen über den Stromanteil, Modul 4 über den Leistungsanteil. An den gemessenen Strängen fallen beide Maße in **99,22 %** der Fälle gleich aus (3075 Messpunkte), Schwellen identisch 0,60 an / 0,70 aus.\n\nDas Maß ist **relativ**: ein Schatten, der zwei Stränge gleichzeitig trifft, verschiebt den Bezug und lässt die übrigen zu gut aussehen. Ein Schatten über alle vier gleichzeitig wird prinzipiell nicht erkannt."
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "⚠️ Modul 4 — geschätzt, nicht gemessen",
+              "heading_style": "title",
+              "icon": "mdi:calculator-variant-outline",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "markdown",
+              "card_mod": {
+                "style": "ha-card { border: 2px dashed rgba(142,36,170,0.75); background: rgba(142,36,170,0.10); }"
+              },
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "**Diese beiden Werte sind Schätzungen.** Aus einem Produkt lassen sich zwei Faktoren nicht zurückgewinnen. Angenommen wird `V4 = Median(V1..V3)`, daraus `I4 = P4 / V4`.\n\nBeziffert über 1025 Messpunkte: unverschattet **0,5 %** Fehler (Median), während Modul 4 selbst im Schatten steht **rund 10 %** — und gerichtet: Spannung zu niedrig, Strom zu hoch.\n\nAktuell angesetzt: **{{ state_attr('sensor.pv_modul_4_spannung_geschaetzt','schaetzfehler_prozent') }} %**{% if state_attr('sensor.pv_modul_4_spannung_geschaetzt','verschattung_beeintraechtigt') %}\n\n⚠️ **Modul 4 ist gerade verschattet — die Schätzung ist beeinträchtigt.**{% endif %}"
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_4_spannung_geschaetzt",
+              "name": "Spannung (geschätzt)",
+              "color": "purple",
+              "icon": "mdi:calculator-variant-outline",
+              "card_mod": {
+                "style": "ha-card { border: 2px dashed rgba(142,36,170,0.75); }"
+              },
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_4_strom_geschaetzt",
+              "name": "Strom (geschätzt)",
+              "color": "purple",
+              "icon": "mdi:calculator-variant-outline",
+              "card_mod": {
+                "style": "ha-card { border: 2px dashed rgba(142,36,170,0.75); }"
+              },
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "Gestrichelter violetter Rahmen heißt im ganzen Dashboard: **gerechnet, nicht gemessen.** In den Verlaufsgraphen ist dieselbe Größe als gestrichelte violette Kurve gezeichnet, die gemessenen Stränge sind durchgezogen."
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Zelltemperatur",
+              "heading_style": "title",
+              "icon": "mdi:thermometer",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Aus der Spannung zurückgerechnet, gilt erst ab einem Drittel des Nennstroms. Lücken sind der Normalfall, kein Ausfall.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_3_zelltemperatur",
+              "name": "PV3",
+              "grid_options": {
+                "columns": 4
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_2_zelltemperatur",
+              "name": "PV2",
+              "grid_options": {
+                "columns": 4
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.pv_modul_1_zelltemperatur",
+              "name": "PV1 · ganz rechts",
+              "grid_options": {
+                "columns": 4
+              }
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "**Für Modul 4 gibt es bewusst keine Zelltemperatur.** Sie würde aus der geschätzten Spannung gerechnet — Schätzung auf Schätzung. Der Spannungsfehler von 9,5 % bei Verschattung schlüge mit rund 38 K durch. Das wäre keine Temperatur mehr, sondern eine Zahl."
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Zuordnung Register zu Dachposition",
+              "heading_style": "title",
+              "icon": "mdi:map-marker-question",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Die Zuordnung ist seit dem 13.08. per Foto bestätigt. Der Text in den Auswahlfeldern sagt noch „unbestaetigt“ — die Helfer selbst wurden nicht angefasst.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "input_select.pv_modul_3_dachposition",
+              "name": "PV3",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "input_select.pv_modul_2_dachposition",
+              "name": "PV2",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "input_select.pv_modul_1_dachposition",
+              "name": "PV1",
+              "grid_options": {
+                "columns": "full"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Verschattung",
+      "path": "verschattung",
+      "icon": "mdi:weather-sunset",
+      "type": "sections",
+      "max_columns": 6,
+      "dense_section_placement": true,
+      "badges": [
+        {
+          "type": "entity",
+          "entity": "sun.sun",
+          "name": "Sonne",
+          "show_name": true,
+          "show_state": true
+        },
+        {
+          "type": "entity",
+          "entity": "sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus",
+          "name": "PV gesamt",
+          "show_name": true,
+          "show_state": true
+        }
+      ],
+      "sections": [
+        {
+          "type": "grid",
+          "column_span": 6,
+          "cards": [
+            {
+              "type": "custom:navbar-card",
+              "desktop": {
+                "position": "left",
+                "show_labels": true,
+                "min_width": 1024
+              },
+              "mobile": {
+                "show_labels": true
+              },
+              "styles": ":host { --navbar-background: var(--card-background-color); --navbar-route-icon-size: 22px; }",
+              "routes": [
+                {
+                  "url": "/pv-module/uebersicht",
+                  "icon": "mdi:view-dashboard",
+                  "label": "Übersicht"
+                },
+                {
+                  "url": "/pv-module/module",
+                  "icon": "mdi:solar-panel",
+                  "label": "Module"
+                },
+                {
+                  "url": "/pv-module/verschattung",
+                  "icon": "mdi:weather-sunset",
+                  "label": "Schatten"
+                },
+                {
+                  "url": "/pv-module/verlaeufe",
+                  "icon": "mdi:chart-line",
+                  "label": "Verläufe"
+                },
+                {
+                  "url": "/pv-module/diagnose",
+                  "icon": "mdi:heart-pulse",
+                  "label": "Diagnose"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "⚠️ Vorläufiges Profil",
+              "heading_style": "title",
+              "icon": "mdi:flask-outline",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "markdown",
+              "card_mod": {
+                "style": "ha-card { border: 2px dashed rgba(255,152,0,0.75); background: rgba(255,152,0,0.10); }"
+              },
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "**Profil aus 2 Messtagen** (12.08. vollständig, 13.08. bis mittags) — 1345 Punkte.\n\nDas ist ein Anfang, **keine gesicherte Aussage**. Nur die Fenster von **PV1 und PV2** sind an zwei Tagen reproduziert. **PV3 und PV4** ruhen auf einem einzigen Tag.\n\nBeide Tage waren klar. Bei bedecktem Himmel gibt es keinen gerichteten Schatten und das Profil überschätzt."
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 4,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Tagesfahrplan",
+              "heading_style": "title",
+              "icon": "mdi:calendar-clock",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Erwarteter Leistungsanteil über den laufenden Tag. Unter 60 % gilt als verschattet. Die senkrechte Linie ist jetzt.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "custom:apexcharts-card",
+              "grid_options": {
+                "columns": "full"
+              },
+              "graph_span": "24h",
+              "span": {
+                "start": "day"
+              },
+              "now": {
+                "show": true,
+                "color": "#e53935",
+                "label": "jetzt"
+              },
+              "header": {
+                "show": true,
+                "show_states": false,
+                "title": "Wann liegt welcher Strang im Schatten"
+              },
+              "apex_config": {
+                "chart": {
+                  "height": 320,
+                  "toolbar": {
+                    "show": false
+                  }
+                },
+                "legend": {
+                  "show": true,
+                  "position": "bottom"
+                },
+                "stroke": {
+                  "lineCap": "butt"
+                },
+                "xaxis": {
+                  "labels": {
+                    "datetimeUTC": false,
+                    "format": "HH:mm"
+                  }
+                },
+                "annotations": {
+                  "yaxis": [
+                    {
+                      "y": 60,
+                      "borderColor": "#e53935",
+                      "strokeDashArray": 4,
+                      "label": {
+                        "text": "60 % — verschattet",
+                        "style": {
+                          "fontSize": "10px"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "yaxis": [
+                {
+                  "id": "p",
+                  "min": 0,
+                  "max": 105,
+                  "decimals": 0,
+                  "apex_config": {
+                    "tickAmount": 3,
+                    "title": {
+                      "text": "Leistungsanteil %"
+                    }
+                  }
+                }
+              ],
+              "series": [
+                {
+                  "entity": "binary_sensor.pv_modul_1_verschattet",
+                  "name": "PV1 · ganz rechts",
+                  "color": "#1f77b4",
+                  "type": "line",
+                  "curve": "stepline",
+                  "stroke_width": 3,
+                  "extend_to": false,
+                  "show": {
+                    "in_header": false,
+                    "legend_value": false
+                  },
+                  "data_generator": "const T=[[90,76,98,100,100],[95,96,98,100,100],[100,97,99,100,100],[105,96,98,100,100],[110,96,99,100,100],[115,96,99,100,100],[120,96,99,100,100],[125,96,99,100,100],[130,96,99,100,100],[135,57,99,100,100],[140,18,98,100,100],[145,58,62,100,100],[150,59,35,100,100],[155,91,12,100,100],[160,100,13,85,100],[165,100,17,66,100],[170,100,49,52,100],[175,100,66,24,100],[180,100,67,23,100],[185,100,82,24,100],[190,100,100,38,76],[195,100,100,34,69],[200,100,100,57,29],[205,100,100,67,21],[210,100,100,81,22],[215,99,100,100,25],[220,99,100,100,46],[225,98,100,100,70],[230,98,100,100,100],[235,97,99,100,100],[240,96,99,100,100],[250,100,95,100,51],[255,100,97,100,65],[260,96,100,100,96],[265,96,100,100,95],[270,93,97,100,100],[275,36,69,100,100]];\nconst LAT=51.76193778594604,LON=7.876596450805665;\nconst rd=x=>x*Math.PI/180,dg=x=>x*180/Math.PI;\nconst now=new Date();\nconst d0=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0,0);\nconst out=[];\nfor(let m=0;m<=1440;m+=5){\n const t=new Date(d0.getTime()+m*60000);\n const y=t.getUTCFullYear();\n const tage=(y%4===0&&(y%100!==0||y%400===0))?366:365;\n const n=Math.floor((Date.UTC(y,t.getUTCMonth(),t.getUTCDate())-Date.UTC(y,0,1))/86400000)+1;\n const g=2*Math.PI/tage*(n-1+(t.getUTCHours()-12)/24);\n const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));\n const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.001480*Math.sin(3*g);\n const mi=t.getUTCHours()*60+t.getUTCMinutes();\n const ha=rd((mi+eq+4*LON)/4-180);\n const b=rd(LAT);\n let cz=Math.sin(b)*Math.sin(dec)+Math.cos(b)*Math.cos(dec)*Math.cos(ha);\n cz=Math.max(-1,Math.min(1,cz));\n const z=Math.acos(cz),hoehe=90-dg(z),sz=Math.sin(z);\n if(hoehe<10){out.push([t.getTime(),null]);continue;}\n let az=180;\n if(sz>=1e-6){let ca=(Math.sin(dec)-Math.sin(b)*cz)/(Math.cos(b)*sz);ca=Math.max(-1,Math.min(1,ca));az=dg(Math.acos(ca));if(ha>0)az=360-az;}\n const k=Math.floor((az-40)/5)*5+40;\n const row=T.find(r=>r[0]===k);\n out.push([t.getTime(),row?row[1]:null]);\n}\nreturn out;"
+                },
+                {
+                  "entity": "binary_sensor.pv_modul_2_verschattet",
+                  "name": "PV2",
+                  "color": "#2e9e5b",
+                  "type": "line",
+                  "curve": "stepline",
+                  "stroke_width": 3,
+                  "extend_to": false,
+                  "show": {
+                    "in_header": false,
+                    "legend_value": false
+                  },
+                  "data_generator": "const T=[[90,76,98,100,100],[95,96,98,100,100],[100,97,99,100,100],[105,96,98,100,100],[110,96,99,100,100],[115,96,99,100,100],[120,96,99,100,100],[125,96,99,100,100],[130,96,99,100,100],[135,57,99,100,100],[140,18,98,100,100],[145,58,62,100,100],[150,59,35,100,100],[155,91,12,100,100],[160,100,13,85,100],[165,100,17,66,100],[170,100,49,52,100],[175,100,66,24,100],[180,100,67,23,100],[185,100,82,24,100],[190,100,100,38,76],[195,100,100,34,69],[200,100,100,57,29],[205,100,100,67,21],[210,100,100,81,22],[215,99,100,100,25],[220,99,100,100,46],[225,98,100,100,70],[230,98,100,100,100],[235,97,99,100,100],[240,96,99,100,100],[250,100,95,100,51],[255,100,97,100,65],[260,96,100,100,96],[265,96,100,100,95],[270,93,97,100,100],[275,36,69,100,100]];\nconst LAT=51.76193778594604,LON=7.876596450805665;\nconst rd=x=>x*Math.PI/180,dg=x=>x*180/Math.PI;\nconst now=new Date();\nconst d0=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0,0);\nconst out=[];\nfor(let m=0;m<=1440;m+=5){\n const t=new Date(d0.getTime()+m*60000);\n const y=t.getUTCFullYear();\n const tage=(y%4===0&&(y%100!==0||y%400===0))?366:365;\n const n=Math.floor((Date.UTC(y,t.getUTCMonth(),t.getUTCDate())-Date.UTC(y,0,1))/86400000)+1;\n const g=2*Math.PI/tage*(n-1+(t.getUTCHours()-12)/24);\n const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));\n const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.001480*Math.sin(3*g);\n const mi=t.getUTCHours()*60+t.getUTCMinutes();\n const ha=rd((mi+eq+4*LON)/4-180);\n const b=rd(LAT);\n let cz=Math.sin(b)*Math.sin(dec)+Math.cos(b)*Math.cos(dec)*Math.cos(ha);\n cz=Math.max(-1,Math.min(1,cz));\n const z=Math.acos(cz),hoehe=90-dg(z),sz=Math.sin(z);\n if(hoehe<10){out.push([t.getTime(),null]);continue;}\n let az=180;\n if(sz>=1e-6){let ca=(Math.sin(dec)-Math.sin(b)*cz)/(Math.cos(b)*sz);ca=Math.max(-1,Math.min(1,ca));az=dg(Math.acos(ca));if(ha>0)az=360-az;}\n const k=Math.floor((az-40)/5)*5+40;\n const row=T.find(r=>r[0]===k);\n out.push([t.getTime(),row?row[2]:null]);\n}\nreturn out;"
+                },
+                {
+                  "entity": "binary_sensor.pv_modul_3_verschattet",
+                  "name": "PV3",
+                  "color": "#e8912d",
+                  "type": "line",
+                  "curve": "stepline",
+                  "stroke_width": 3,
+                  "extend_to": false,
+                  "show": {
+                    "in_header": false,
+                    "legend_value": false
+                  },
+                  "data_generator": "const T=[[90,76,98,100,100],[95,96,98,100,100],[100,97,99,100,100],[105,96,98,100,100],[110,96,99,100,100],[115,96,99,100,100],[120,96,99,100,100],[125,96,99,100,100],[130,96,99,100,100],[135,57,99,100,100],[140,18,98,100,100],[145,58,62,100,100],[150,59,35,100,100],[155,91,12,100,100],[160,100,13,85,100],[165,100,17,66,100],[170,100,49,52,100],[175,100,66,24,100],[180,100,67,23,100],[185,100,82,24,100],[190,100,100,38,76],[195,100,100,34,69],[200,100,100,57,29],[205,100,100,67,21],[210,100,100,81,22],[215,99,100,100,25],[220,99,100,100,46],[225,98,100,100,70],[230,98,100,100,100],[235,97,99,100,100],[240,96,99,100,100],[250,100,95,100,51],[255,100,97,100,65],[260,96,100,100,96],[265,96,100,100,95],[270,93,97,100,100],[275,36,69,100,100]];\nconst LAT=51.76193778594604,LON=7.876596450805665;\nconst rd=x=>x*Math.PI/180,dg=x=>x*180/Math.PI;\nconst now=new Date();\nconst d0=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0,0);\nconst out=[];\nfor(let m=0;m<=1440;m+=5){\n const t=new Date(d0.getTime()+m*60000);\n const y=t.getUTCFullYear();\n const tage=(y%4===0&&(y%100!==0||y%400===0))?366:365;\n const n=Math.floor((Date.UTC(y,t.getUTCMonth(),t.getUTCDate())-Date.UTC(y,0,1))/86400000)+1;\n const g=2*Math.PI/tage*(n-1+(t.getUTCHours()-12)/24);\n const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));\n const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.001480*Math.sin(3*g);\n const mi=t.getUTCHours()*60+t.getUTCMinutes();\n const ha=rd((mi+eq+4*LON)/4-180);\n const b=rd(LAT);\n let cz=Math.sin(b)*Math.sin(dec)+Math.cos(b)*Math.cos(dec)*Math.cos(ha);\n cz=Math.max(-1,Math.min(1,cz));\n const z=Math.acos(cz),hoehe=90-dg(z),sz=Math.sin(z);\n if(hoehe<10){out.push([t.getTime(),null]);continue;}\n let az=180;\n if(sz>=1e-6){let ca=(Math.sin(dec)-Math.sin(b)*cz)/(Math.cos(b)*sz);ca=Math.max(-1,Math.min(1,ca));az=dg(Math.acos(ca));if(ha>0)az=360-az;}\n const k=Math.floor((az-40)/5)*5+40;\n const row=T.find(r=>r[0]===k);\n out.push([t.getTime(),row?row[3]:null]);\n}\nreturn out;"
+                },
+                {
+                  "entity": "binary_sensor.pv_modul_4_verschattet",
+                  "name": "PV4 · ganz links",
+                  "color": "#8e24aa",
+                  "type": "line",
+                  "curve": "stepline",
+                  "stroke_width": 3,
+                  "extend_to": false,
+                  "show": {
+                    "in_header": false,
+                    "legend_value": false
+                  },
+                  "data_generator": "const T=[[90,76,98,100,100],[95,96,98,100,100],[100,97,99,100,100],[105,96,98,100,100],[110,96,99,100,100],[115,96,99,100,100],[120,96,99,100,100],[125,96,99,100,100],[130,96,99,100,100],[135,57,99,100,100],[140,18,98,100,100],[145,58,62,100,100],[150,59,35,100,100],[155,91,12,100,100],[160,100,13,85,100],[165,100,17,66,100],[170,100,49,52,100],[175,100,66,24,100],[180,100,67,23,100],[185,100,82,24,100],[190,100,100,38,76],[195,100,100,34,69],[200,100,100,57,29],[205,100,100,67,21],[210,100,100,81,22],[215,99,100,100,25],[220,99,100,100,46],[225,98,100,100,70],[230,98,100,100,100],[235,97,99,100,100],[240,96,99,100,100],[250,100,95,100,51],[255,100,97,100,65],[260,96,100,100,96],[265,96,100,100,95],[270,93,97,100,100],[275,36,69,100,100]];\nconst LAT=51.76193778594604,LON=7.876596450805665;\nconst rd=x=>x*Math.PI/180,dg=x=>x*180/Math.PI;\nconst now=new Date();\nconst d0=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0,0);\nconst out=[];\nfor(let m=0;m<=1440;m+=5){\n const t=new Date(d0.getTime()+m*60000);\n const y=t.getUTCFullYear();\n const tage=(y%4===0&&(y%100!==0||y%400===0))?366:365;\n const n=Math.floor((Date.UTC(y,t.getUTCMonth(),t.getUTCDate())-Date.UTC(y,0,1))/86400000)+1;\n const g=2*Math.PI/tage*(n-1+(t.getUTCHours()-12)/24);\n const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));\n const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.001480*Math.sin(3*g);\n const mi=t.getUTCHours()*60+t.getUTCMinutes();\n const ha=rd((mi+eq+4*LON)/4-180);\n const b=rd(LAT);\n let cz=Math.sin(b)*Math.sin(dec)+Math.cos(b)*Math.cos(dec)*Math.cos(ha);\n cz=Math.max(-1,Math.min(1,cz));\n const z=Math.acos(cz),hoehe=90-dg(z),sz=Math.sin(z);\n if(hoehe<10){out.push([t.getTime(),null]);continue;}\n let az=180;\n if(sz>=1e-6){let ca=(Math.sin(dec)-Math.sin(b)*cz)/(Math.cos(b)*sz);ca=Math.max(-1,Math.min(1,ca));az=dg(Math.acos(ca));if(ha>0)az=360-az;}\n const k=Math.floor((az-40)/5)*5+40;\n const row=T.find(r=>r[0]===k);\n out.push([t.getTime(),row?row[4]:null]);\n}\nreturn out;"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Jetzt: erwartet gegen gemessen",
+              "heading_style": "title",
+              "icon": "mdi:compare-horizontal",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "markdown",
+              "grid_options": {
+                "columns": "full"
+              },
+              "entity_id": [
+                "sun.sun",
+                "sensor.pv_modul_1_leistungsanteil",
+                "sensor.pv_modul_2_leistungsanteil",
+                "sensor.pv_modul_3_leistungsanteil",
+                "sensor.pv_modul_4_leistungsanteil"
+              ],
+              "content": "{%- set az = state_attr('sun.sun','azimuth') | float(-1) -%}\n{%- set el = state_attr('sun.sun','elevation') | float(-90) -%}\n{%- set tab = {\n  90:[76,98,100,100], 95:[96,98,100,100], 100:[97,99,100,100], 105:[96,98,100,100],\n  110:[96,99,100,100], 115:[96,99,100,100], 120:[96,99,100,100], 125:[96,99,100,100],\n  130:[96,99,100,100], 135:[57,99,100,100], 140:[18,98,100,100], 145:[58,62,100,100],\n  150:[59,35,100,100], 155:[91,12,100,100], 160:[100,13,85,100], 165:[100,17,66,100],\n  170:[100,49,52,100], 175:[100,66,24,100], 180:[100,67,23,100], 185:[100,82,24,100],\n  190:[100,100,38,76], 195:[100,100,34,69], 200:[100,100,57,29], 205:[100,100,67,21],\n  210:[100,100,81,22], 215:[99,100,100,25], 220:[99,100,100,46], 225:[98,100,100,70],\n  230:[98,100,100,100], 235:[97,99,100,100], 240:[96,99,100,100], 250:[100,95,100,51],\n  255:[100,97,100,65], 260:[96,100,100,96], 265:[96,100,100,95], 270:[93,97,100,100],\n  275:[36,69,100,100] } -%}\n{%- set fach = ((az - 40) / 5) | int * 5 + 40 -%}\nSonne steht bei **{{ az | round(1) }}°** Azimut, {{ el | round(1) }}° hoch.\n\n{% if el < 10 %}Die Sonne steht zu flach — unter 10° ist das Maß Rauschen, es gibt keine Erwartung.\n{% elif fach not in tab %}Für dieses Azimutfach ({{ fach }}°) gibt es keinen belegten Wert. Im Bereich um 245° wurde die Messung verworfen, weil der Bezug zusammenbricht, sobald zwei Stränge zugleich im Schatten liegen.\n{% else %}\n| Strang | erwartet | gemessen |\n|---|---|---|\n{% for i in range(4) -%}\n{%- set nm = ['PV1 · ganz rechts','PV2','PV3','PV4 · ganz links'][i] -%}\n{%- set ist = states('sensor.pv_modul_' ~ (i+1) ~ '_leistungsanteil') | float(-1) -%}\n| {{ nm }} | {{ tab[fach][i] }} % | {{ '—' if ist < 0 else (ist | round(0) | int ~ ' %') }} |\n{% endfor %}\n\nErwartung aus dem Azimutprofil, gemessen aus den laufenden Sensoren. Werte über 100 % heißen: die Nachbarn liegen im Schatten, nicht dieser Strang.\n{% endif %}"
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Der Giebel gegenüber",
+              "heading_style": "title",
+              "icon": "mdi:home-roof",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "markdown",
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "Das gegenüberliegende Haus hat ein **Satteldach mit Spitze** — per Foto belegt. Ein Giebel wirft einen **Λ-förmigen Schatten**: die Spitze reicht am weitesten, die Schenkel laufen schräg nach außen.\n\nWeil die Kanten schräg stehen, trifft der Schatten die vier Stränge **nacheinander** statt gleichzeitig — von PV1 rechts nach PV4 links. Ein Randmodul kann voll in der Sonne stehen, während der direkte Nachbar tief im Schatten liegt.\n\n```\nPV1  135–155\nPV2       150–175\nPV3            170–205\nPV4                 200–225\n```\n\nAm 13.08. bei 165° stand die Spitze über PV2 (9 %), PV3 lag bei 60 %, beide Randmodule frei. Das Profil sagt für dieses Fach 17 / 66 / 100 / 100 — **an einem anderen Tag unabhängig bestätigt**."
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "**Für die Ausbauentscheidung:** Eine feste Giebelgeometrie ist über den Azimut extrapolierbar. Im Winter steht die Sonne tiefer, der Schatten reicht weiter — das Profil sagt vorher, welche Module wann betroffen sind, ohne ein ganzes Jahr zu messen.\n\nDer Vorbehalt: die Verschiebung der *Uhrzeiten* fängt der Azimutbezug vollständig auf, die größere **Schattenlänge** bei tieferer Sonne nicht. Dafür bräuchte es Giebelhöhe und Abstand — beides ist nicht gemessen."
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "Das Profil ist nach **Sonnenazimut** abgelegt, nicht nach Uhrzeit: ein Hindernis steht fest im Raum, die Uhrzeiten verschieben sich aber über die Wochen. Dieselben Fenster liegen Mitte September rund eine halbe Stunde früher. Die Karte rechnet die Uhrzeiten für den laufenden Tag aus dem Azimut aus.\n\nWas das Profil **nicht** leistet: den Jahresgang. Zwei Tage im August sagen nichts darüber, wie lang dieselben Objekte im Oktober werfen. Rechenweg und Vorbehalte in `docs/VERSCHATTUNG-PROFIL.md`."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Verläufe",
+      "path": "verlaeufe",
+      "icon": "mdi:chart-line",
+      "type": "sections",
+      "max_columns": 6,
+      "dense_section_placement": true,
+      "badges": [
+        {
+          "type": "entity",
+          "entity": "sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus",
+          "name": "PV gesamt",
+          "show_name": true,
+          "show_state": true
+        },
+        {
+          "type": "entity",
+          "entity": "sensor.solarbank_diagnose_gesamtzustand",
+          "name": "Zustand",
+          "show_name": true,
+          "show_state": true
+        }
+      ],
+      "sections": [
+        {
+          "type": "grid",
+          "column_span": 6,
+          "cards": [
+            {
+              "type": "custom:navbar-card",
+              "desktop": {
+                "position": "left",
+                "show_labels": true,
+                "min_width": 1024
+              },
+              "mobile": {
+                "show_labels": true
+              },
+              "styles": ":host { --navbar-background: var(--card-background-color); --navbar-route-icon-size: 22px; }",
+              "routes": [
+                {
+                  "url": "/pv-module/uebersicht",
+                  "icon": "mdi:view-dashboard",
+                  "label": "Übersicht"
+                },
+                {
+                  "url": "/pv-module/module",
+                  "icon": "mdi:solar-panel",
+                  "label": "Module"
+                },
+                {
+                  "url": "/pv-module/verschattung",
+                  "icon": "mdi:weather-sunset",
+                  "label": "Schatten"
+                },
+                {
+                  "url": "/pv-module/verlaeufe",
+                  "icon": "mdi:chart-line",
+                  "label": "Verläufe"
+                },
+                {
+                  "url": "/pv-module/diagnose",
+                  "icon": "mdi:heart-pulse",
+                  "label": "Diagnose"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Farben und Linien",
+              "heading_style": "title",
+              "icon": "mdi:palette-outline",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "PV1 blau · PV2 grün · PV3 orange · PV4 violett. Auf dem Dach liegt PV1 ganz rechts und PV4 ganz links.\n\n**Durchgezogen = gemessen oder exakt gerechnet. Gestrichelt = geschätzt.** Gestrichelt tritt nur bei Spannung und Strom von PV4 auf."
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Leistung je Strang (12 h)",
+              "heading_style": "title",
+              "icon": "mdi:flash",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "history-graph",
+              "hours_to_show": 12,
+              "grid_options": {
+                "columns": "full",
+                "rows": 5
+              },
+              "entities": [
+                {
+                  "entity": "sensor.pv_modul_1_leistung",
+                  "name": "PV1 · ganz rechts",
+                  "color": "#1f77b4"
+                },
+                {
+                  "entity": "sensor.pv_modul_2_leistung",
+                  "name": "PV2",
+                  "color": "#2e9e5b"
+                },
+                {
+                  "entity": "sensor.pv_modul_3_leistung",
+                  "name": "PV3",
+                  "color": "#e8912d"
+                },
+                {
+                  "entity": "sensor.pv_modul_4_leistung",
+                  "name": "PV4 · ganz links",
+                  "color": "#8e24aa"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Leistungsanteil (12 h)",
+              "heading_style": "title",
+              "icon": "mdi:scale-balance",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Vier von vier, exakt. Unter 60 % gilt als verschattet, ab 70 % wieder als frei.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "history-graph",
+              "hours_to_show": 12,
+              "min_y_axis": 0,
+              "max_y_axis": 130,
+              "fit_y_data": true,
+              "grid_options": {
+                "columns": "full",
+                "rows": 5
+              },
+              "entities": [
+                {
+                  "entity": "sensor.pv_modul_1_leistungsanteil",
+                  "name": "PV1 · ganz rechts",
+                  "color": "#1f77b4"
+                },
+                {
+                  "entity": "sensor.pv_modul_2_leistungsanteil",
+                  "name": "PV2",
+                  "color": "#2e9e5b"
+                },
+                {
+                  "entity": "sensor.pv_modul_3_leistungsanteil",
+                  "name": "PV3",
+                  "color": "#e8912d"
+                },
+                {
+                  "entity": "sensor.pv_modul_4_leistungsanteil",
+                  "name": "PV4 · ganz links",
+                  "color": "#8e24aa"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Ströme (12 h)",
+              "heading_style": "title",
+              "icon": "mdi:current-dc",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Modul 4 gestrichelt — geschätzt aus P4 / Median(V1..V3).",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "custom:apexcharts-card",
+              "graph_span": "12h",
+              "grid_options": {
+                "columns": "full"
+              },
+              "header": {
+                "show": true,
+                "show_states": true,
+                "colorize_states": true,
+                "title": "Strom je Strang"
+              },
+              "apex_config": {
+                "chart": {
+                  "height": 280,
+                  "toolbar": {
+                    "show": false
+                  }
+                },
+                "legend": {
+                  "show": true
+                }
+              },
+              "yaxis": [
+                {
+                  "id": "a",
+                  "decimals": 1
+                }
+              ],
+              "series": [
+                {
+                  "entity": "sensor.pv_modul_1_strom",
+                  "name": "PV1 · ganz rechts",
+                  "color": "#1f77b4",
+                  "type": "line",
+                  "stroke_width": 2,
+                  "yaxis_id": "a",
+                  "show": {
+                    "in_header": "raw"
+                  }
+                },
+                {
+                  "entity": "sensor.pv_modul_2_strom",
+                  "name": "PV2",
+                  "color": "#2e9e5b",
+                  "type": "line",
+                  "stroke_width": 2,
+                  "yaxis_id": "a",
+                  "show": {
+                    "in_header": "raw"
+                  }
+                },
+                {
+                  "entity": "sensor.pv_modul_3_strom",
+                  "name": "PV3",
+                  "color": "#e8912d",
+                  "type": "line",
+                  "stroke_width": 2,
+                  "yaxis_id": "a",
+                  "show": {
+                    "in_header": "raw"
+                  }
+                },
+                {
+                  "entity": "sensor.pv_modul_4_strom_geschaetzt",
+                  "name": "PV4 (geschätzt)",
+                  "color": "#8e24aa",
+                  "type": "line",
+                  "stroke_width": 2,
+                  "stroke_dash": 6,
+                  "yaxis_id": "a",
+                  "show": {
+                    "in_header": "raw"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Spannungen (12 h)",
+              "heading_style": "title",
+              "icon": "mdi:flash-triangle-outline",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Modul 4 gestrichelt — angenommen als Median der drei gemessenen Stränge.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "custom:apexcharts-card",
+              "graph_span": "12h",
+              "grid_options": {
+                "columns": "full"
+              },
+              "header": {
+                "show": true,
+                "show_states": true,
+                "colorize_states": true,
+                "title": "Spannung je Strang"
+              },
+              "apex_config": {
+                "chart": {
+                  "height": 280,
+                  "toolbar": {
+                    "show": false
+                  }
+                },
+                "legend": {
+                  "show": true
+                }
+              },
+              "yaxis": [
+                {
+                  "id": "v",
+                  "decimals": 1
+                }
+              ],
+              "series": [
+                {
+                  "entity": "sensor.pv_modul_1_spannung",
+                  "name": "PV1 · ganz rechts",
+                  "color": "#1f77b4",
+                  "type": "line",
+                  "stroke_width": 2,
+                  "yaxis_id": "v",
+                  "show": {
+                    "in_header": "raw"
+                  }
+                },
+                {
+                  "entity": "sensor.pv_modul_2_spannung",
+                  "name": "PV2",
+                  "color": "#2e9e5b",
+                  "type": "line",
+                  "stroke_width": 2,
+                  "yaxis_id": "v",
+                  "show": {
+                    "in_header": "raw"
+                  }
+                },
+                {
+                  "entity": "sensor.pv_modul_3_spannung",
+                  "name": "PV3",
+                  "color": "#e8912d",
+                  "type": "line",
+                  "stroke_width": 2,
+                  "yaxis_id": "v",
+                  "show": {
+                    "in_header": "raw"
+                  }
+                },
+                {
+                  "entity": "sensor.pv_modul_4_spannung_geschaetzt",
+                  "name": "PV4 (geschätzt)",
+                  "color": "#8e24aa",
+                  "type": "line",
+                  "stroke_width": 2,
+                  "stroke_dash": 6,
+                  "yaxis_id": "v",
+                  "show": {
+                    "in_header": "raw"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Stromanteil (12 h)",
+              "heading_style": "title",
+              "icon": "mdi:percent-outline",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Nur Modul 1–3. Modul 4 hat bewusst keinen Stromanteil, weil dessen Strom geschätzt ist.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "history-graph",
+              "hours_to_show": 12,
+              "min_y_axis": 0,
+              "max_y_axis": 130,
+              "fit_y_data": true,
+              "grid_options": {
+                "columns": "full",
+                "rows": 5
+              },
+              "entities": [
+                {
+                  "entity": "sensor.pv_modul_1_stromanteil",
+                  "name": "PV1 · ganz rechts",
+                  "color": "#1f77b4"
+                },
+                {
+                  "entity": "sensor.pv_modul_2_stromanteil",
+                  "name": "PV2",
+                  "color": "#2e9e5b"
+                },
+                {
+                  "entity": "sensor.pv_modul_3_stromanteil",
+                  "name": "PV3",
+                  "color": "#e8912d"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Zelltemperatur (12 h)",
+              "heading_style": "title",
+              "icon": "mdi:thermometer",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Nur Modul 1–3. Lücken sind der Normalfall — der Wert gilt erst ab einem Drittel Nennstrom.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "history-graph",
+              "hours_to_show": 12,
+              "grid_options": {
+                "columns": "full",
+                "rows": 5
+              },
+              "entities": [
+                {
+                  "entity": "sensor.pv_modul_1_zelltemperatur",
+                  "name": "PV1 · ganz rechts",
+                  "color": "#1f77b4"
+                },
+                {
+                  "entity": "sensor.pv_modul_2_zelltemperatur",
+                  "name": "PV2",
+                  "color": "#2e9e5b"
+                },
+                {
+                  "entity": "sensor.pv_modul_3_zelltemperatur",
+                  "name": "PV3",
+                  "color": "#e8912d"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Diagnose",
+      "path": "diagnose",
+      "icon": "mdi:heart-pulse",
+      "type": "sections",
+      "max_columns": 6,
+      "dense_section_placement": true,
+      "badges": [
+        {
+          "type": "entity",
+          "entity": "sensor.solarbank_diagnose_gesamtzustand",
+          "name": "Gesamt",
+          "show_name": true,
+          "show_state": true
+        },
+        {
+          "type": "entity",
+          "entity": "sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus",
+          "name": "Modbus",
+          "show_name": true,
+          "show_state": true
+        },
+        {
+          "type": "entity",
+          "entity": "sensor.anker_solix_solarbank_4_e5000_pro_441_solarstrom",
+          "name": "Offiziell",
+          "show_name": true,
+          "show_state": true
+        }
+      ],
+      "sections": [
+        {
+          "type": "grid",
+          "column_span": 6,
+          "cards": [
+            {
+              "type": "custom:navbar-card",
+              "desktop": {
+                "position": "left",
+                "show_labels": true,
+                "min_width": 1024
+              },
+              "mobile": {
+                "show_labels": true
+              },
+              "styles": ":host { --navbar-background: var(--card-background-color); --navbar-route-icon-size: 22px; }",
+              "routes": [
+                {
+                  "url": "/pv-module/uebersicht",
+                  "icon": "mdi:view-dashboard",
+                  "label": "Übersicht"
+                },
+                {
+                  "url": "/pv-module/module",
+                  "icon": "mdi:solar-panel",
+                  "label": "Module"
+                },
+                {
+                  "url": "/pv-module/verschattung",
+                  "icon": "mdi:weather-sunset",
+                  "label": "Schatten"
+                },
+                {
+                  "url": "/pv-module/verlaeufe",
+                  "icon": "mdi:chart-line",
+                  "label": "Verläufe"
+                },
+                {
+                  "url": "/pv-module/diagnose",
+                  "icon": "mdi:heart-pulse",
+                  "label": "Diagnose"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Gesamtzustand",
+              "heading_style": "title",
+              "icon": "mdi:heart-pulse",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "custom:mushroom-template-card",
+              "entity": "sensor.solarbank_diagnose_gesamtzustand",
+              "icon": "{% set s = states('sensor.solarbank_diagnose_gesamtzustand') %}{% if s == 'ok' %}mdi:check-circle{% elif s == 'warnung' %}mdi:alert{% elif s == 'stoerung' %}mdi:alert-octagon{% else %}mdi:help-circle{% endif %}",
+              "icon_color": "{% set s = states('sensor.solarbank_diagnose_gesamtzustand') %}{% if s == 'ok' %}green{% elif s == 'warnung' %}orange{% elif s == 'stoerung' %}red{% else %}grey{% endif %}",
+              "primary": "{% set s = states('sensor.solarbank_diagnose_gesamtzustand') %}{% if s == 'ok' %}Alles in Ordnung{% elif s == 'warnung' %}Warnung{% elif s == 'stoerung' %}Störung{% else %}Zustand unbekannt{% endif %}",
+              "secondary": "{% set b = state_attr('sensor.solarbank_diagnose_gesamtzustand','befunde') %}{% if b %}{% for x in b %}• {{ x }}\n{% endfor %}{% else %}Keine Befunde. Alle zehn Prüfungen sind grün.{% endif %}",
+              "multiline_secondary": true,
+              "tap_action": {
+                "action": "more-info"
+              },
+              "grid_options": {
+                "columns": "full",
+                "rows": 3
+              }
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "**Störung** = Befund aus Prüfung 1, 2, 3, 4, 5, 7 oder 9 — Push und persistente Meldung, entprellt über 5 min. **Warnung** = Befund aus 6, 8 oder 10 — nur persistente Meldung, 15 min. **Entwarnung** räumt nach 10 min beides ab."
+            },
+            {
+              "type": "tile",
+              "entity": "input_boolean.solarbank_diagnose_alarm_aktiv",
+              "name": "Alarm-Latch (aktiv = Alarm lief)",
+              "icon": "mdi:bell-ring-outline",
+              "grid_options": {
+                "columns": "full"
+              }
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Die zehn Prüfungen",
+              "heading_style": "title",
+              "icon": "mdi:clipboard-list-outline",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.solarbank_diagnose_integration_ausgefallen",
+              "name": "1 Verbindung / Integration",
+              "icon": "mdi:lan-disconnect",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.solarbank_diagnose_leseblock_verworfen",
+              "name": "2 Leseblock verworfen",
+              "icon": "mdi:table-remove",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.solarbank_diagnose_daten_eingefroren",
+              "name": "3 Daten eingefroren",
+              "icon": "mdi:snowflake-alert",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.solarbank_diagnose_entities_unavailable",
+              "name": "4 Entities unavailable",
+              "icon": "mdi:eye-off",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.solarbank_diagnose_bilanzabweichung_dauerhaft",
+              "name": "5 Energiebilanz",
+              "icon": "mdi:scale-unbalanced",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.solarbank_diagnose_querabweichung_dauerhaft",
+              "name": "6 Querprüfung offiziell",
+              "icon": "mdi:compare-horizontal",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.solarbank_diagnose_messwert_unplausibel",
+              "name": "7 Messwert unplausibel",
+              "icon": "mdi:alert-decagram",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.solarbank_diagnose_modul_4_dauerhaft_geklemmt",
+              "name": "8 Modul 4 geklemmt",
+              "icon": "mdi:arrow-collapse-down",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.solarbank_diagnose_werte_unveraendert",
+              "name": "9 Werte stehen still",
+              "icon": "mdi:pause-octagon",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "binary_sensor.solarbank_diagnose_offizielle_integration_stumm",
+              "name": "10 Offizielle stumm",
+              "icon": "mdi:cloud-off-outline",
+              "grid_options": {
+                "columns": "full"
+              }
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Registergruppen",
+              "heading_style": "title",
+              "icon": "mdi:table-cog",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "teilausfall heißt: ein Leseblock wurde verworfen oder ein gefordertes Register fehlt. Antippen zeigt die fehlenden Adressen.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.solarbank_diagnose_gruppe_strings",
+              "name": "Strangdaten (30 s)",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.solarbank_diagnose_gruppe_mirror",
+              "name": "Redundanz (30 s)",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.solarbank_diagnose_gruppe_grid",
+              "name": "Netzqualität (60 s)",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.solarbank_diagnose_gruppe_limits",
+              "name": "Leistungsgrenzen (300 s)",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.solarbank_diagnose_gruppe_unknown",
+              "name": "Unbestimmt (300 s)",
+              "grid_options": {
+                "columns": 6
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.solarbank_diagnose_gruppe_clock",
+              "name": "Gerätezeit (3600 s)",
+              "grid_options": {
+                "columns": 6
+              }
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Kennzahlen der Dauerprüfungen",
+              "heading_style": "title",
+              "icon": "mdi:chart-timeline-variant",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "heading",
+              "heading": "Anteil der Zeit, in der die Momentanbedingung zutraf. Ein echter Lesefehler geht gegen 100 %.",
+              "heading_style": "subtitle",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.solarbank_diagnose_bilanzabweichung_anteil_1h",
+              "name": "Bilanz 1 h",
+              "icon": "mdi:scale-unbalanced",
+              "grid_options": {
+                "columns": 4
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.solarbank_diagnose_querabweichung_anteil_1h",
+              "name": "Querprüfung 1 h",
+              "icon": "mdi:compare-horizontal",
+              "grid_options": {
+                "columns": 4
+              }
+            },
+            {
+              "type": "tile",
+              "entity": "sensor.solarbank_diagnose_modul_4_geklemmt_anteil_6h",
+              "name": "Modul 4 geklemmt 6 h",
+              "icon": "mdi:arrow-collapse-down",
+              "grid_options": {
+                "columns": 4
+              }
+            },
+            {
+              "type": "history-graph",
+              "hours_to_show": 24,
+              "grid_options": {
+                "columns": "full",
+                "rows": 4
+              },
+              "entities": [
+                {
+                  "entity": "sensor.solarbank_diagnose_bilanzabweichung_anteil_1h",
+                  "name": "Bilanz",
+                  "color": "#e8912d"
+                },
+                {
+                  "entity": "sensor.solarbank_diagnose_querabweichung_anteil_1h",
+                  "name": "Querprüfung",
+                  "color": "#1f77b4"
+                },
+                {
+                  "entity": "sensor.solarbank_diagnose_modul_4_geklemmt_anteil_6h",
+                  "name": "PV4",
+                  "color": "#8e24aa"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "column_span": 2,
+          "cards": [
+            {
+              "type": "heading",
+              "heading": "Querprüfung: Modbus gegen offizielle Integration",
+              "heading_style": "title",
+              "icon": "mdi:compare-horizontal",
+              "grid_options": {
+                "columns": "full"
+              }
+            },
+            {
+              "type": "history-graph",
+              "hours_to_show": 12,
+              "grid_options": {
+                "columns": "full",
+                "rows": 4
+              },
+              "entities": [
+                {
+                  "entity": "sensor.solarbank_dc_straenge_441_pv_leistung_gesamt_modbus",
+                  "name": "Modbus gesamt",
+                  "color": "#2e9e5b"
+                },
+                {
+                  "entity": "sensor.anker_solix_solarbank_4_e5000_pro_441_solarstrom",
+                  "name": "Offiziell",
+                  "color": "#1f77b4"
+                }
+              ]
+            },
+            {
+              "type": "markdown",
+              "text_only": true,
+              "visibility": [
+                {
+                  "condition": "state",
+                  "entity": "input_boolean.dashboard_hilfetexte",
+                  "state": "on"
+                }
+              ],
+              "grid_options": {
+                "columns": "full"
+              },
+              "content": "Zwei unabhängige Quellen für dieselbe Größe. Laufen sie dauerhaft auseinander, schlägt Prüfung 6 an — das ist eine **Warnung**, keine Störung, weil nicht entscheidbar ist, welche der beiden Quellen irrt."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
