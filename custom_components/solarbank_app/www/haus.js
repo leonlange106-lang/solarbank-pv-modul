@@ -145,6 +145,26 @@ function flussSetzen(linie, punkte, wattWert) {
   }
 }
 
+
+/** icon() aus m3.js liefert SVG-MARKUP ALS STRING, keinen Knoten.
+ *
+ *  Das direkt an appendChild zu geben wirft
+ *  "Argument 1 ('node') to Node.appendChild must be an instance of Node"
+ *  und riss beim ersten Aufruf jede Ansicht ab. Diese Huelle macht daraus
+ *  einen Knoten - an einer Stelle, statt an neun.
+ */
+function iconEl(name, cls) {
+  const span = document.createElement('span');
+  span.className = cls ? `sb-icon ${cls}` : 'sb-icon';
+  span.setAttribute('aria-hidden', 'true');
+  try {
+    span.innerHTML = icon(name);
+  } catch (e) {
+    span.textContent = '';
+  }
+  return span;
+}
+
 export function buildHaus(ctx) {
   const wrap = document.createElement('div');
   wrap.className = 'sb-haus';
@@ -152,7 +172,7 @@ export function buildHaus(ctx) {
   // Deutlich sichtbarer Platzhalter-Hinweis.
   const chip = document.createElement('div');
   chip.className = 'sb-haus-chip';
-  chip.appendChild(icon('home'));
+  chip.appendChild(iconEl('home'));
   chip.appendChild(
     Object.assign(document.createElement('span'), {
       textContent:
@@ -372,10 +392,11 @@ export function buildHaus(ctx) {
 // Styling der Hausansicht. Einmalig beim Laden des Moduls eingefuegt,
 // dieselben M3-Tokens (mit Fallbacks) wie in views.js.
 // ---------------------------------------------------------------------------
-if (!document.head.querySelector('style[data-sb-style="haus"]')) {
-  const style = document.createElement('style');
-  style.setAttribute('data-sb-style', 'haus');
-  style.textContent = `
+// Styles werden NICHT mehr in document.head gelegt, sondern als String
+// exportiert. Die App rendert im Shadow DOM, und Regeln aus document.head
+// ueberqueren diese Grenze nicht - die Ansichten waeren komplett ungestylt
+// gewesen. app.js haengt sie zusammen mit M3_CSS in den Shadow Root.
+export const HAUS_CSS = `
     .sb-haus {
       --sb-surface-container: var(--surface-container, #f3ecdf);
       --sb-surface-container-high: var(--surface-container-high, #ede4d3);
@@ -511,6 +532,4 @@ if (!document.head.querySelector('style[data-sb-style="haus"]')) {
     }
     .sb-haus-legende dt { font-size: 0.72rem; color: var(--sb-on-surface-variant); }
     .sb-haus-legende dd { margin: 0; font-size: 1rem; font-weight: 600; }
-  `;
-  document.head.appendChild(style);
-}
+`;

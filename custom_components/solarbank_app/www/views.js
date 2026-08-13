@@ -48,10 +48,29 @@ function el(tag, { cls, text, attrs, children } = {}) {
   return node;
 }
 
+/** icon() aus m3.js liefert SVG-MARKUP ALS STRING, keinen Knoten.
+ *
+ *  Das direkt an appendChild zu geben wirft
+ *  "Argument 1 ('node') to Node.appendChild must be an instance of Node"
+ *  und riss beim ersten Aufruf jede Ansicht ab. Diese Huelle macht daraus
+ *  einen Knoten - an einer Stelle, statt an neun.
+ */
+function iconEl(name, cls) {
+  const span = document.createElement('span');
+  span.className = cls ? `sb-icon ${cls}` : 'sb-icon';
+  span.setAttribute('aria-hidden', 'true');
+  try {
+    span.innerHTML = icon(name);
+  } catch (e) {
+    span.textContent = '';
+  }
+  return span;
+}
+
 /** Kopfzeile einer Ansicht: Icon + Ueberschrift, optional Untertitel. */
 function ansichtsKopf(titel, iconName, untertitel) {
   const kopf = el('div', { cls: 'sb-ansicht-kopf' });
-  kopf.appendChild(icon(iconName));
+  kopf.appendChild(iconEl(iconName));
   const texte = el('div');
   texte.appendChild(el('h1', { cls: 'headline', text: titel }));
   if (untertitel) texte.appendChild(el('p', { cls: 'body sb-kopf-untertitel', text: untertitel }));
@@ -62,7 +81,7 @@ function ansichtsKopf(titel, iconName, untertitel) {
 /** Ueberschrift eines Abschnitts innerhalb einer Ansicht. */
 function abschnitt(titel, iconName) {
   const h = el('div', { cls: 'sb-abschnitt' });
-  if (iconName) h.appendChild(icon(iconName));
+  if (iconName) h.appendChild(iconEl(iconName));
   h.appendChild(el('h2', { cls: 'title', text: titel }));
   return h;
 }
@@ -92,7 +111,7 @@ function quelleZeile(text) {
 /** Grosse Kennzahl ("Held") fuer die wichtigste Zahl einer Ansicht. */
 function heldenZahl({ titel, wert, subtitel, iconName, ton = 'neutral' }) {
   const box = el('div', { cls: `sb-held sb-held-${ton}` });
-  if (iconName) box.appendChild(icon(iconName));
+  if (iconName) box.appendChild(iconEl(iconName));
   const inhalt = el('div');
   inhalt.appendChild(el('div', { cls: 'display', text: wert }));
   inhalt.appendChild(el('div', { cls: 'title', text: titel }));
@@ -174,7 +193,7 @@ function m3Select({ data, entity, label, iconName, quelle }) {
   const wrap = el('div', { cls: 'sb-control' });
   wrap.appendChild(quelleZeile(quelle));
   const kopf = el('div', { cls: 'sb-control-kopf' });
-  kopf.appendChild(icon(iconName));
+  kopf.appendChild(iconEl(iconName));
   kopf.appendChild(el('span', { cls: 'label', text: label }));
   wrap.appendChild(kopf);
 
@@ -210,7 +229,7 @@ function m3Slider({ data, entity, label, iconName, quelle }) {
   const wrap = el('div', { cls: 'sb-control' });
   wrap.appendChild(quelleZeile(quelle));
   const kopf = el('div', { cls: 'sb-control-kopf' });
-  kopf.appendChild(icon(iconName));
+  kopf.appendChild(iconEl(iconName));
   kopf.appendChild(el('span', { cls: 'label', text: label }));
   const anzeige = el('span', {
     cls: 'sb-control-wert',
@@ -249,7 +268,7 @@ function m3SliderBestaetigt({ data, entity, label, iconName }) {
 
   const wrap = el('div', { cls: 'sb-control' });
   const kopf = el('div', { cls: 'sb-control-kopf' });
-  kopf.appendChild(icon(iconName));
+  kopf.appendChild(iconEl(iconName));
   kopf.appendChild(el('span', { cls: 'label', text: label }));
   const anzeige = el('span', {
     cls: 'sb-control-wert',
@@ -284,7 +303,7 @@ function m3SliderBestaetigt({ data, entity, label, iconName }) {
 /** M3-Schalter (Switch) fuer input_boolean, mit Bestaetigungsdialog. */
 function m3SwitchBestaetigt({ data, entity, label, iconName, beschreibung }) {
   const zeile = el('div', { cls: 'sb-control-zeile' });
-  zeile.appendChild(icon(iconName));
+  zeile.appendChild(iconEl(iconName));
   zeile.appendChild(el('span', { cls: 'body sb-control-zeile-label', text: label }));
 
   const btn = document.createElement('button');
@@ -320,7 +339,7 @@ function pvStrangKarte(data, n) {
   const geschaetzt = n === 4;
   const karte = el('div', { cls: 'sb-karte' });
   const kopf = el('div', { cls: 'sb-karte-kopf' });
-  kopf.appendChild(icon('solar-power'));
+  kopf.appendChild(iconEl('solar-power'));
   kopf.appendChild(el('span', { cls: 'title', text: `PV-Strang ${n}` }));
   kopf.appendChild(chip(geschaetzt ? 'geschaetzt' : 'nur lesend', geschaetzt ? 'warnung' : 'lesend'));
   karte.appendChild(kopf);
@@ -1100,10 +1119,11 @@ export const VIEWS = [
 // eigenstaendigen Fallbacks, damit die Ansichten auch dann lesbar bleiben,
 // wenn m3.js einzelne Tokens (noch) nicht setzt.
 // ---------------------------------------------------------------------------
-if (!document.head.querySelector('style[data-sb-style="views"]')) {
-  const style = document.createElement('style');
-  style.setAttribute('data-sb-style', 'views');
-  style.textContent = `
+// Styles werden NICHT mehr in document.head gelegt, sondern als String
+// exportiert. Die App rendert im Shadow DOM, und Regeln aus document.head
+// ueberqueren diese Grenze nicht - die Ansichten waeren komplett ungestylt
+// gewesen. app.js haengt sie zusammen mit M3_CSS in den Shadow Root.
+export const VIEWS_CSS = `
     .sb-view {
       --sb-surface: var(--surface, #fffbf3);
       --sb-surface-container: var(--surface-container, #f3ecdf);
@@ -1314,6 +1334,4 @@ if (!document.head.querySelector('style[data-sb-style="views"]')) {
     @media (prefers-reduced-motion: reduce) {
       .sb-balken-fuellung, .sb-switch, .sb-switch::after { transition: none; }
     }
-  `;
-  document.head.appendChild(style);
-}
+`;

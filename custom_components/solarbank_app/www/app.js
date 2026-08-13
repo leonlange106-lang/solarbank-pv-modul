@@ -21,7 +21,8 @@
 
 import { M3_CSS, icon, ripple } from './m3.js';
 import { Data } from './data.js';
-import { VIEWS } from './views.js';
+import { VIEWS, VIEWS_CSS } from './views.js';
+import { HAUS_CSS } from './haus.js';
 
 // Entity, aus der der Statuspunkt in der Kopfzeile abgeleitet wird.
 const STATUS_ENTITY = 'sensor.solarbank_diagnose_gesamtzustand';
@@ -107,8 +108,11 @@ class SolarbankApp extends HTMLElement {
   }
 
   _buildShell() {
+    // M3-Tokens zuerst, danach die Ansichts-Styles - beide MUESSEN in den
+    // Shadow Root. Regeln aus document.head erreichen ihn nicht.
     const style = document.createElement('style');
-    style.textContent = M3_CSS;
+    style.textContent = [M3_CSS, VIEWS_CSS, HAUS_CSS].filter(Boolean).join('
+');
     this._root.appendChild(style);
 
     const shell = document.createElement('div');
