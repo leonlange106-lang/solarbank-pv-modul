@@ -233,15 +233,45 @@ und zwar ohne Modell, ohne Prognose und ohne Einschwingen:
 | `sensor.pv_theoretische_leistung` | `4 x max(P1..P4)` in W |
 | `sensor.pv_verschattungsverlust` | `P_theoretisch - P_ist` in W, auf 0 geklemmt |
 
-### Warum das Maximum die richtige Referenz ist
+### Die Referenz ist nicht das Maximum, sondern das Mittel der Besten
 
 Vier baugleiche, koplanare Module mit je eigenem MPP-Tracker. Der Schatten ist
 ein schmaler wandernder Streifen — zu jedem Zeitpunkt liefert **mindestens
-einer unverschattet**. Der beste der vier ist damit die unverschattete
-Referenz, und weil alle vier identisch sind, gilt sie fuer die ganze Anlage.
+einer unverschattet**.
 
-Gegenprobe am Tageslauf des 12.08.: **12,38 kWh theoretisch gegen 10,15 kWh
-real, also 2,23 kWh oder 18,1 % Verschattungsverlust an einem klaren Tag.**
+Das schlichte Maximum waere dafuer der naheliegende Schaetzer, ist aber
+**systematisch zu hoch**: das Maximum von vier verrauschten Werten liegt ueber
+dem wahren Mittel. An den 355 Messpunkten des 12.08., an denen alle vier eng
+beieinander liegen, ueberschaetzt es um **2,57 % im Median** (p90 5,16 %) — mal
+vier ist das der Fehler in W, und er geht voll in den ausgewiesenen Verlust ein.
+Die Momentaufnahme PV1 402 W bei 28,5 V gegen PV4 387 W bei 31,2 V zeigt, dass
+das nicht nur Rauschen ist: die kaeltere Spannung von PV4 verraet die kuerzere
+Besonnungsgeschichte.
+
+Verglichen wurden vier Varianten am vollen Tageslauf (1275 Punkte):
+
+| Variante | Median-Sprung zum Vorwert | Tagesverlust |
+|---|---|---|
+| `max` | 30,0 W | 2,23 kWh (18,1 %) |
+| zweithoechster | 18,4 W | 1,67 kWh (14,1 %) |
+| Median der Straenge ≥ 90 % vom Besten | 20,8 W | 2,00 kWh (16,5 %) |
+| **Mittel der Straenge ≥ 90 % vom Besten** | **20,0 W** | **1,99 kWh (16,4 %)** |
+
+Gewaehlt ist das **Mittel aller Straenge innerhalb von 10 % des besten**:
+
+- Liegen mehrere unverschattet, mittelt es deren Rauschen weg — ein Drittel
+  ruhiger als das Maximum.
+- Liegt **nur einer** unverschattet, faellt es auf genau diesen einen zurueck
+  und ist dann mit dem Maximum identisch.
+
+Der **zweithoechste** ist ausdruecklich verworfen. Deckt der Schatten drei
+Straenge — genau der Fall, um den es geht —, ist der zweithoechste selbst
+verschattet, die Referenz bricht zusammen und der Verlust wird massiv
+unterschaetzt. Sein scheinbar bester Glattheitswert erkauft sich das mit einem
+Fehler in Richtung „kein Problem".
+
+Gegenprobe am Tageslauf des 12.08.: **12,14 kWh theoretisch gegen 10,15 kWh
+real, also 1,99 kWh oder 16,4 % Verschattungsverlust an einem klaren Tag.**
 
 Der Vorteil gegenueber `pv_lernprognose`: das funktioniert ab der ersten
 Sekunde. Kein Forecast.Solar, keine gelernte Tagesform, kein Systemgain, kein
@@ -257,6 +287,8 @@ Sekunde. Kein Forecast.Solar, keine gelernte Tagesform, kein Systemgain, kein
 | `Abregelung nicht entscheidbar` | Aussentemperatur oder ein Strangregister fehlt — `None` ist hier nicht `nein` |
 | `Einstrahlung zu schwach` | bester Strang unter `MIN_POWER_FOR_RATIO` (15 W); nachts ist die Aussage sinnlos |
 | `Strangleistung unvollstaendig` | ein Register fehlt im Abbild |
+| `alle vier eng und tief gegen Klarhimmel` | der Blindfleck, siehe unten |
+| `alle vier eng, Klarhimmelbezug fehlt` | Blindfleck nicht pruefbar, weil `pv_lernprognose` keinen POA-Wert liefert |
 
 Die Abregelungssperre benutzt dieselbe Entscheidung wie
 `binary_sensor.pv_abregelung_erkannt`. Beide rufen `is_curtailed()` in
@@ -265,6 +297,57 @@ waeren ein Fehler, der erst auffiele, wenn jemand nur eine davon aendert.
 
 Das Tagesintegral bleibt in diesen Zeiten **stehen** statt zu raten: die
 Riemann-Integration akkumuliert nicht ueber `unknown`.
+
+### Der Winter-Blindfleck
+
+**Liegen alle vier Module gleichzeitig im Schatten, gibt es keine unverschattete
+Referenz mehr.** Ohne Absicherung meldete das Verfahren dann `P_verlust = 0` —
+obwohl der Verlust maximal ist.
+
+Das ist kein Randfall. Im Sommer streift der Giebelschatten die Reihe nur mit
+der Spitze; im Winter steht die Sonne tiefer, der Schatten wird laenger, und die
+Schenkel legen sich ueber die ganze Reihe. **Ein total verschatteter Wintertag
+saehe aus wie ein perfekter Tag** — und die Fehlerrichtung ist die denkbar
+schlechteste, weil die Zahl in eine Ausbauentscheidung eingeht und in Richtung
+„kein Problem" irrt.
+
+Abgesichert ueber zwei Groessen, beide als Attribut sichtbar:
+
+- **`traeger_straenge`** — wieviele Straenge innerhalb von 10 % des besten
+  liegen und die Referenz tragen. Bei **4** liegen alle eng beieinander: dann
+  ist entweder *nichts* verschattet oder *alles*.
+- **`anteil_klarhimmel`** — die theoretische Leistung geteilt durch die
+  geometrische Klarhimmelerwartung (`4 × 500 Wp × POA / 1000`).
+
+Die Entscheidung:
+
+| `traeger_straenge` | `anteil_klarhimmel` | Deutung |
+|---|---|---|
+| < 4 | egal | ein Strang sticht heraus, es gibt eine unverschattete Referenz — **gueltig** |
+| 4 | ≥ 0,50 | alle hoch: nichts verschattet, Verlust wirklich null — **gueltig** |
+| 4 | < 0,50 | alle tief: Bewoelkung **oder** Totalverschattung — **`unknown`** |
+
+Als POA dient das Attribut **`poa_w_m2`** von
+`sensor.pv_lernen_klarhimmelleistung` — reine Geometrie, nur gelesen. Der
+*Zustand* dieses Sensors waere unbrauchbar: er enthaelt laut eigenem Hinweis
+„Systemgain mal geometrische POA mal gelernte Tagesform", und beide gelernten
+Groessen stehen bei `0 von 4 eingeschwungen` auf Platzhaltern.
+
+Die Schwelle 0,50 ist grosszuegig gewaehlt. Am klaren Mittag des 13.08. lag der
+Anteil bei **0,908** (POA 908 W/m², theoretisch rund 1650 W) — der Abstand zur
+Schwelle ist also gross, und schwache Morgensonne loest nichts aus, weil die POA
+dann ebenfalls klein ist.
+
+**Bewoelkung und Totalverschattung sind mit vier koplanaren Modulen nicht
+trennbar.** Beide sehen identisch aus: alle vier fallen gleichmaessig. Deshalb
+nennt der Zustand beide Moeglichkeiten und entscheidet nicht. Wer die Trennung
+braucht, braucht einen Sensor ausserhalb der Modulebene.
+
+Warum `unknown` und nicht `0`: eine ausgewiesene Null liefe in das
+Tagesintegral ein und behauptete „heute kein Verlust". `unknown` laesst das
+Integral stehen, und der Grund steht im Attribut. Auf einem bedeckten Tag ist
+der wahre Verschattungsverlust tatsaechlich nahe null — aber das *wissen* wir
+nicht, und der Sensor darf es nicht behaupten.
 
 ### Drei Grenzen des Verfahrens
 

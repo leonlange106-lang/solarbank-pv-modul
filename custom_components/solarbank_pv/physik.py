@@ -14,7 +14,36 @@ from .const import (
     MIN_CURRENT_FOR_RATIO,
     MODULE_TEMP_COEFF,
     MODULE_VOC_STC,
+    MODULE_WP,
+    REFERENZ_NAHE_ANTEIL,
 )
+
+
+def unshaded_reference(werte: list[float]) -> tuple[float, int]:
+    """Unverschattete Strangleistung und wieviele Straenge sie tragen.
+
+    Mittel aller Straenge, die innerhalb von REFERENZ_NAHE_ANTEIL des besten
+    liegen. Liegt nur einer nah am besten, ist das Ergebnis genau dieser eine -
+    der Fall, in dem der Schatten drei Straenge deckt und die Referenz nicht
+    verwaessert werden darf.
+
+    Der zweite Rueckgabewert ist der Vertrauensindikator: bei 4 liegen alle
+    vier eng beieinander, dann ist entweder nichts verschattet oder alles.
+    """
+    bester = max(werte)
+    nahe = [w for w in werte if w >= REFERENZ_NAHE_ANTEIL * bester]
+    return sum(nahe) / len(nahe), len(nahe)
+
+
+def klarhimmel_erwartung(poa_w_m2: float, module: int = 4) -> float:
+    """Was die Anlage bei dieser Einstrahlung unter STC liefern wuerde, in W.
+
+    Reine Geometrie mal Datenblatt-Nennleistung. Keine gelernte Groesse, damit
+    die Aussage nicht am Lernstand der Prognose haengt. Der reale Ertrag liegt
+    systematisch darunter (Temperatur, Einfallswinkel, Verschmutzung) - die
+    Groesse taugt deshalb als Groessenordnung, nicht als Sollwert.
+    """
+    return module * MODULE_WP * poa_w_m2 / 1000.0
 
 
 def curtail_threshold(ambient: float) -> float:

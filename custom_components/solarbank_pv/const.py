@@ -74,6 +74,44 @@ MIN_POWER_FOR_RATIO: Final = 15.0  # W
 # Division P4/V4 numerisch wertlos.
 MIN_VOLTAGE_FOR_ESTIMATE: Final = 5.0  # V
 
+# --- Unverschattete Referenz (theoretische Leistung) ----------------------
+# Als Referenz gilt das MITTEL aller Straenge, die nah am besten liegen, nicht
+# der beste allein. Grund: das Maximum von vier verrauschten Werten liegt
+# systematisch darueber. Am Tageslauf des 12.08. an den Punkten, wo alle vier
+# eng beieinander liegen, ueberschaetzt das schlichte Maximum das Mittel im
+# Median um 2,57 % (p90 5,16 %) - mal vier ist das der Fehler in W.
+#
+# Liegt nur ein Strang nah am besten, faellt das Mittel auf genau diesen einen
+# zurueck. Das ist der wichtige Fall: wenn der Schatten drei Straenge deckt,
+# darf die Referenz nicht auf einen verschatteten Nachbarn heruntergezogen
+# werden. Deshalb NICHT der zweithoechste - der unterschaetzt genau dann, und
+# damit in Richtung "kein Problem".
+REFERENZ_NAHE_ANTEIL: Final = 0.90
+
+# Nennleistung eines Moduls bei STC, aus dem Datenblatt: 33,18 V x 15,07 A.
+# Keine gelernte Groesse.
+MODULE_IMP_STC: Final = 15.07       # A bei 25 Grad C
+MODULE_WP: Final = MODULE_VMP_STC * MODULE_IMP_STC   # rund 500 W
+
+# --- Blindfleck: alle vier gleichzeitig verschattet ------------------------
+# Liegen alle vier Straenge eng beieinander, ist entweder NICHTS verschattet
+# oder ALLES. Das Verfahren misst nur Unterschiede zwischen den Straengen und
+# kann die beiden Faelle aus sich heraus nicht trennen. Getrennt wird ueber die
+# absolute Hoehe gegen die geometrische Klarhimmelerwartung.
+#
+# Bezug ist das Attribut `poa_w_m2` von sensor.pv_lernen_klarhimmelleistung -
+# reine Geometrie ohne gelernte Groesse. Der Zustand des Sensors selbst waere
+# unbrauchbar, er enthaelt den gelernten Systemgain.
+KLARHIMMEL_ENTITY: Final = "sensor.pv_lernen_klarhimmelleistung"
+KLARHIMMEL_ATTRIBUT: Final = "poa_w_m2"
+
+# Unterhalb dieses Anteils der Klarhimmelerwartung gilt die Anlage als "tief".
+# 0.50 ist bewusst grosszuegig: Temperaturverluste, Einfallswinkel und
+# Verschmutzung druecken den realen Ertrag auch bei klarem Himmel deutlich
+# unter die STC-Erwartung. Erst darunter ist Bewoelkung oder Totalverschattung
+# die plausiblere Erklaerung.
+KLARHIMMEL_BLIND_ANTEIL: Final = 0.50
+
 # Verschattungsschwellen mit Hysterese, bezogen auf den Median der uebrigen
 # Straenge. Unter 0.60 gilt als verschattet, erst ueber 0.70 wieder als frei.
 SHADE_ON: Final = 0.60

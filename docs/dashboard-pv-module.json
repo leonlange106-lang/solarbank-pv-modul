@@ -1078,7 +1078,7 @@
             },
             {
               "type": "heading",
-              "heading": "Reine Messung: 4 × der beste der vier Stränge ist die unverschattete Referenz. Kein Modell, kein Einschwingen.",
+              "heading": "Reine Messung: Referenz ist das Mittel der Stränge, die innerhalb von 10 % des besten liegen. Kein Modell, kein Einschwingen.",
               "heading_style": "subtitle",
               "grid_options": {
                 "columns": "full"
@@ -1125,7 +1125,7 @@
               "grid_options": {
                 "columns": "full"
               },
-              "content": "Am klaren Tageslauf des 12.08. gerechnet: **12,38 kWh möglich, 2,23 kWh verloren — 18,1 %.**\n\nDie beiden Tageswerte laufen ab jetzt mit. Sie sind die Zahl für die Ausbauentscheidung Mitte September."
+              "content": "Am klaren Tageslauf des 12.08. gerechnet: **12,14 kWh möglich, 1,99 kWh verloren — 16,4 %.**\n\nDie beiden Tageswerte laufen ab jetzt mit. Sie sind die Zahl für die Ausbauentscheidung Mitte September."
             },
             {
               "type": "markdown",
@@ -1140,7 +1140,7 @@
               "grid_options": {
                 "columns": "full"
               },
-              "content": "**Bewölkung ist kein Verschattungsverlust.** Zieht eine Wolke über die ganze Anlage, fallen alle vier gleichmäßig — das Maximum sinkt mit und der Verlust geht korrekt gegen null. Gewollt, kein Fehler.\n\n**Bei Abregelung rechnen die Sensoren nicht.** Bei vollem Speicher drosselt der Wechselrichter alle vier Tracker gleichzeitig; dann wäre auch die Referenz gedrückt. Sie liefern dann `unknown` statt einer falschen Zahl, der Grund steht im Attribut `grund`, und das Tagesintegral bleibt stehen.\n\n**Gleichmäßige Verschmutzung sieht das Verfahren nicht.** Es misst nur Unterschiede *zwischen* den Strängen. Rechenweg in `docs/VERSCHATTUNG-PROFIL.md`."
+              "content": "**Liegen alle vier gleichzeitig im Schatten, ist das Verfahren blind.** Im Winter legt der Giebelschatten seine Schenkel über die ganze Reihe. Dann gibt es keine unverschattete Referenz mehr, und ohne Absicherung sähe ein total verschatteter Tag aus wie ein perfekter. Das Attribut `traeger_straenge` zeigt, wie viele Stränge die Referenz tragen; bei **4** entscheidet die Höhe gegen die Klarhimmelerwartung (`anteil_klarhimmel`). Liegt sie unter 50 %, liefern beide Sensoren `unknown` statt einer falschen Null.\n\n**Bewölkung und Totalverschattung sind nicht trennbar.** Beide sehen mit vier gleich ausgerichteten Modulen identisch aus. Der Sensor nennt beide Möglichkeiten und entscheidet nicht.\n\n**Bei Abregelung rechnen die Sensoren nicht.** Bei vollem Speicher drosselt der Wechselrichter alle vier Tracker gleichzeitig; dann wäre auch die Referenz gedrückt. Sie liefern dann `unknown`, der Grund steht im Attribut `grund`, und das Tagesintegral bleibt stehen.\n\n**Gleichmäßige Verschmutzung sieht das Verfahren nicht.** Es misst nur Unterschiede *zwischen* den Strängen. Rechenweg in `docs/VERSCHATTUNG-PROFIL.md`."
             }
           ]
         },

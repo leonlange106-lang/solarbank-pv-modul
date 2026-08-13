@@ -28,6 +28,9 @@ from .const import (
     CONF_OUTDOOR_TEMP,
     DEFAULT_OUTDOOR_TEMP,
     DOMAIN,
+    KLARHIMMEL_ATTRIBUT,
+    KLARHIMMEL_BLIND_ANTEIL,
+    KLARHIMMEL_ENTITY,
     MIN_CURRENT_FOR_RATIO,
     MIN_CURRENT_FOR_TEMP,
     MIN_POWER_FOR_RATIO,
@@ -36,6 +39,7 @@ from .const import (
     MODULE_VMP_STC,
     PV4_ERROR_CLEAR,
     PV4_ERROR_SHADED,
+    REFERENZ_NAHE_ANTEIL,
     REGISTERS,
     REGISTERS_BY_KEY,
     SHADE_ON,
@@ -45,7 +49,7 @@ from .const import (
 from .coordinator import SolarbankGroupCoordinator
 from .diagnose import build_health_sensors
 from .modbus_reader import decode
-from .physik import is_curtailed
+from .physik import is_curtailed, klarhimmel_erwartung, unshaded_reference
 
 
 def display_name(name: str) -> str:
@@ -499,6 +503,8 @@ class UnshadedReferenceEntity(StringDerivedEntity):
         self._outdoor_entity = outdoor_entity
         self._grund: str = "noch keine Messung"
         self._bester_index: int | None = None
+        self._traeger: int | None = None
+        self._anteil_klar: float | None = None
 
     def _outdoor_temp(self) -> float | None:
         state = self.hass.states.get(self._outdoor_entity)
@@ -509,6 +515,24 @@ class UnshadedReferenceEntity(StringDerivedEntity):
         except ValueError:
             return None
 
+    def _poa(self) -> float | None:
+        """Geometrische Klarhimmel-Einstrahlung in W/m2, nur gelesen.
+
+        Aus dem Attribut, nicht aus dem Zustand: der Zustand von
+        sensor.pv_lernen_klarhimmelleistung enthaelt den gelernten Systemgain
+        und die gelernte Tagesform. Beide stehen bei ungelernter Anlage auf
+        Platzhaltern und wuerden diese Pruefung wertlos machen.
+        """
+        state = self.hass.states.get(KLARHIMMEL_ENTITY)
+        if state is None or state.state in ("unknown", "unavailable"):
+            return None
+        wert = state.attributes.get(KLARHIMMEL_ATTRIBUT)
+        try:
+            poa = float(wert)
+        except (TypeError, ValueError):
+            return None
+        return poa if poa > 0 else None
+
     def _reference(self) -> float | None:
         """Vier mal die beste Strangleistung, oder None mit Begruendung.
 
@@ -518,6 +542,8 @@ class UnshadedReferenceEntity(StringDerivedEntity):
         entstanden ist.
         """
         self._bester_index = None
+        self._traeger = None
+        self._anteil_klar = None
 
         if not self.coordinator.data:
             self._grund = "keine Registerdaten"
@@ -543,7 +569,8 @@ class UnshadedReferenceEntity(StringDerivedEntity):
             self._grund = "Abregelung aktiv, Referenz waere gedrueckt"
             return None
 
-        bester = max(w for w in werte if w is not None)
+        sauber = [w for w in werte if w is not None]
+        bester = max(sauber)
         # Nachts und bei sehr schwacher Einstrahlung ist die Aussage sinnlos.
         # Dieselbe Untergrenze wie beim Leistungsanteil, hier auf den besten
         # Strang angewandt.
@@ -551,9 +578,39 @@ class UnshadedReferenceEntity(StringDerivedEntity):
             self._grund = "Einstrahlung zu schwach"
             return None
 
+        referenz, traeger = unshaded_reference(sauber)
         self._bester_index = werte.index(bester)
+        self._traeger = traeger
+        theoretisch = 4.0 * referenz
+
+        # BLINDFLECK. Tragen alle vier Straenge die Referenz, liegen sie eng
+        # beieinander - dann ist entweder nichts verschattet oder alles. Das
+        # Verfahren misst nur Unterschiede zwischen den Straengen und kann die
+        # Faelle aus sich heraus nicht trennen.
+        #
+        # Das ist kein Randfall: im Winter legt der Giebelschatten seine
+        # Schenkel ueber die ganze Reihe, statt sie wie im Sommer nur mit der
+        # Spitze zu streifen. Ohne diese Pruefung saehe ein total verschatteter
+        # Wintertag aus wie ein perfekter - der Fehler zeigte also ausgerechnet
+        # in Richtung "kein Problem", und die Zahl geht in eine
+        # Ausbauentscheidung ein.
+        if traeger == len(sauber):
+            poa = self._poa()
+            if poa is None:
+                self._grund = "alle vier eng, Klarhimmelbezug fehlt - nicht pruefbar"
+                return None
+            self._anteil_klar = theoretisch / klarhimmel_erwartung(poa)
+            if self._anteil_klar < KLARHIMMEL_BLIND_ANTEIL:
+                # Bewoelkung und Totalverschattung sind hier NICHT trennbar.
+                # Beide sehen mit vier koplanaren Modulen identisch aus.
+                self._grund = (
+                    "alle vier eng und tief gegen Klarhimmel - "
+                    "Bewoelkung oder Totalverschattung, nicht unterscheidbar"
+                )
+                return None
+
         self._grund = "ok"
-        return 4.0 * bester
+        return theoretisch
 
     def _ist_leistung(self) -> float | None:
         if not self.coordinator.data:
@@ -577,10 +634,23 @@ class UnshadedReferenceEntity(StringDerivedEntity):
             # Aufschlag ist klein: der Sprung zum Vorwert liegt im Median bei
             # 32 W statt 24 W, im p90 sogar leicht darunter.
             "referenz_ist_differenzwert": self._bester_index == 3,
-            "methode": "4 x max(P1..P4), unverschattete Referenz",
+            "methode": (
+                f"4 x Mittel der Straenge >= {REFERENZ_NAHE_ANTEIL:.0%} des besten"
+            ),
+            # Vertrauensindikator: wieviele Straenge tragen die Referenz? Bei 4
+            # liegen alle eng beieinander und das Verfahren sieht keinen
+            # Unterschied mehr - dann entscheidet die Hoehe gegen Klarhimmel.
+            "traeger_straenge": self._traeger,
+            "anteil_klarhimmel": (
+                None if self._anteil_klar is None else round(self._anteil_klar, 3)
+            ),
             "mindestleistung_w": MIN_POWER_FOR_RATIO,
             "gilt_nicht_bei": "Abregelung; gleichmaessige Verschmutzung",
-            "bewoelkung": "kein Verlust - das Maximum faellt mit",
+            "bewoelkung": "kein Verlust - die Referenz faellt mit",
+            "blindfleck": (
+                "alle vier gleichzeitig verschattet ist von Bewoelkung nicht "
+                "unterscheidbar; beide liefern unknown"
+            ),
         }
 
 
