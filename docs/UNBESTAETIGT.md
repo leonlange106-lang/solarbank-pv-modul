@@ -29,7 +29,7 @@ Messdaten neu gebaut werden.
 | 10064 | 0 | 0–0 | 1 | Betriebsmodus | **sicher** | Hersteller-YAML, deckt sich mit HA-Select |
 | 10071 | 65535 | 0–65535 | 2 | Sollwert Batterieleistung, INT32 | **sicher** | Hersteller-YAML - NICHT ANFASSEN, Sollwert der Nulleinspeisung |
 | 10130 | 19201 | 19201–25601 | 26 | Ladezustand in Prozent, Highbyte, Duplikat von 10041 | **sicher** | 4 Scanlesungen bei SOC 79/81/93/100 |
-| 10156 | 340 | 340–360 | 3 | Stufenwert in 1,0-Schritten | **OFFEN** | Spannungsthese stark geschwaecht: 16 Prozentpunkte SOC-Abfall ohne Regung |
+| 10156 | 340 | 340–360 | 3 | Geraetetemperatur, /10 Grad C | **sehr wahrscheinlich** | ueber 2 Tage geprueft. Spannungsthese widerlegt (16 Prozentpunkte SOC-Abfall ohne Regung). Die 1,0-Stufung folgt zwingend aus der Kopplung an 10252: Highbyte mal 10 springt nur in Zehnerschritten, /10 sind das 1-Grad-Schritte |
 | 10167 | 151 | 58–366 | 103 | Strang 1 Spannung, /10 V | **sicher** | App-Vergleich, Abweichung 0,2 % |
 | 10168 | 65535 | 0–65535 | 183 | Strang 1 Strom, /100 A, INT16 | **sicher** | App-Vergleich; wird in der Daemmerung leicht negativ |
 | 10169 | 145 | 79–370 | 135 | Strang 2 Spannung, /10 V | **sicher** | App-Vergleich, Abweichung 2,2 % |

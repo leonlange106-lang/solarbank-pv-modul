@@ -229,10 +229,27 @@ REGISTERS: Final[tuple[Reg, ...]] = (
     Reg("ac_output_current", 10205, "i16", 0.01, "AC-Ausgangsstrom",
         "strings", True, enabled=True, unit="A", device_class="current",
         icon="mdi:transmission-tower-export"),
-    # Stufenwert in 1,0-V-Schritten, faellt ueber den Tag mit der Einstrahlung.
-    # Deutung weiterhin offen, deshalb ohne Einheit und ohne device_class.
-    Reg("r10156", 10156, "u16", 1.0, "Unbekannt Stufenwert 1",
-        "strings", False, enabled=True, **_UNKNOWN),
+    # Geraetetemperatur. Ueber zwei Tage geprueft und als sehr wahrscheinlich
+    # eingestuft; die fruehere Spannungsthese ist widerlegt (16 Prozentpunkte
+    # SOC-Abfall ohne jede Regung des Registers).
+    #
+    # Das Register ist das Highbyte von 10252 mal 10 - belegt an 311 von 312
+    # Messpunkten. Daraus folgt zwingend die Stufung: als Highbyte kann es nur
+    # in Zehnerschritten springen, was bei /10 genau 1-Grad-Schritte ergibt.
+    # Die vermeintlich stoerende Grobstufigkeit ist also kein Argument gegen
+    # die Temperaturdeutung, sondern ihre Bestaetigung.
+    #
+    # certain bleibt False: "sehr wahrscheinlich" ist nicht "gegen App oder
+    # Physik verifiziert". Einheit und device_class sind dennoch gesetzt, weil
+    # eine Temperatur ohne Einheit im Verlauf nicht lesbar ist - die Unsicher-
+    # heit steht im Attribut deutung_sicher, wo sie hingehoert.
+    # Der Schluessel bleibt r10156: er bildet die unique_id. Ihn auf einen
+    # sprechenden Namen zu heben wuerde eine neue Entity erzeugen und den
+    # bisherigen Verlauf abschneiden. Identitaet und Bezeichnung sind getrennt,
+    # genau dafuer.
+    Reg("r10156", 10156, "u16", 0.1, "Geraetetemperatur",
+        "strings", False, enabled=True, unit="°C",
+        device_class="temperature", icon="mdi:thermometer"),
 
     # --- Leistungsgrenzen, aktiv --------------------------------------------
     Reg("max_charge_power", 10036, "i32", 1.0, "Maximale Ladeleistung",
