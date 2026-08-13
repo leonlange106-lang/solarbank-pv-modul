@@ -127,7 +127,10 @@ BLOCKS: Final[dict[str, tuple[Block, ...]]] = {
     "grid": (Block(10199, 1), Block(10202, 1), Block(10208, 32)),
     "clock": (Block(10060, 2, proven=False),),
     "mirror": (
-        Block(10002, 2),
+        # count=4 statt 2: 10004/10005 (Fremdanlage) liegt im selben Block und
+        # blieb sonst ungelesen, wodurch die Entity dauerhaft unknown zeigte.
+        # 10002..10005 ist als gueltige Start/Count-Kombination geprueft.
+        Block(10002, 4),
         Block(10008, 2),
         Block(10010, 2),
         Block(10012, 2),
@@ -267,7 +270,10 @@ REGISTERS: Final[tuple[Reg, ...]] = (
         "mirror", True, icon="mdi:counter", **_KWH),
     Reg("ac_output_power_mb", 10208, "i32", 1.0, "AC-Ausgangsleistung (Modbus)",
         "mirror", True, icon="mdi:transmission-tower-export", **_W),
-    Reg("rated_energy_mb", 10250, "u16", 0.1, "Nennkapazitaet (Modbus)",
+    # u32 ueber 10250/10251, nicht u16: das Highword 10250 steht konstant auf 0,
+    # der Wert steckt im Lowword. Als u16 gelesen lieferte der Sensor deshalb
+    # dauerhaft 0,0 kWh. Rohblock vom 13.08.: [0, 51, ...] -> 51 * 0,1 = 5,1 kWh.
+    Reg("rated_energy_mb", 10250, "u32", 0.1, "Nennkapazitaet (Modbus)",
         "mirror", True, unit="kWh", device_class="energy_storage",
         state_class=None, icon="mdi:battery"),
     # 10254/10255 ist die Batterieleistung mit umgekehrtem Vorzeichen zu
