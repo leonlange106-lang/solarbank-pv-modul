@@ -200,13 +200,20 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not uebernommen:
             return
         self.lernstand.hauslast.tage.update(uebernommen)
+        self.lernstand.hauslast.bootstrap_tage |= set(uebernommen)
         self.lernstand.bootstrap = {
             "hauslast_quelle": quelle,
             "hauslast_tage": len(uebernommen),
             "hauslast_verfahren": "Stundenmittel aus der Langzeitstatistik",
+            "hinweis": (
+                "Vorbelegte Tage gehen in den Wert ein, zaehlen aber nicht "
+                "fuer die Aussage `gelernt` - sie sind Stundenmittel, keine "
+                "Stundenmediane, und ein Reglertest schlaegt darin durch."
+            ),
         }
         _LOGGER.info(
-            "Hauslast aus %d Tagen Langzeitstatistik von %s vorbelegt.",
+            "Hauslast aus %d Tagen Langzeitstatistik von %s vorbelegt. Diese "
+            "Tage zaehlen nicht fuer `gelernt`.",
             len(uebernommen), quelle,
         )
 
@@ -284,8 +291,10 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # --- Simulation ---------------------------------------------------
         pegel_info = self.lernstand.pegel.wert(heute)
         eta_info = self.lernstand.eta.wert(heute)
-        werktag_profil, werktag_n = self.lernstand.hauslast.profil(heute, False)
-        we_profil, we_n = self.lernstand.hauslast.profil(heute, True)
+        werktag_profil, werktag_n, werktag_eigen = self.lernstand.hauslast.profil(
+            heute, False
+        )
+        we_profil, we_n, we_eigen = self.lernstand.hauslast.profil(heute, True)
 
         umgebung = Umgebung(
             breite=self.breite,
@@ -349,6 +358,8 @@ class LernprognoseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "wochenende": [round(x, 1) for x in we_profil],
                 "stichprobe_werktag": werktag_n,
                 "stichprobe_wochenende": we_n,
+                "selbst_gemessen_werktag": werktag_eigen,
+                "selbst_gemessen_wochenende": we_eigen,
             },
             "pegel_info": pegel_info,
             "eta_info": eta_info,

@@ -104,6 +104,13 @@ class Hauslastschaetzer:
         self.tage: dict[str, dict[str, float]] = {}
         self.heute: str | None = None
         self.laufend: dict[str, list[float]] = {}
+        # Tage, die beim Kaltstart aus der Langzeitstatistik vorbelegt
+        # wurden. Sie sind Stundenmittel, keine Stundenmediane - ein
+        # Reglertest schlaegt darin durch. Sie gehen deshalb in den WERT
+        # ein (besser als nichts), zaehlen aber NICHT fuer die Aussage
+        # "gelernt". Diese Aussage ist eine Behauptung ueber die eigene
+        # Beobachtung, und die faengt bei null an.
+        self.bootstrap_tage: set[str] = set()
 
     # -- Aufnahme ----------------------------------------------------------
     def probe(self, jetzt: dt.datetime, watt: float) -> None:
@@ -145,13 +152,22 @@ class Hauslastschaetzer:
                 alle[self.heute] = teil
         return _im_fenster(alle, heute, FENSTER_HAUSLAST_TAGE)
 
-    def profil(self, heute: dt.date, wochenende: bool) -> tuple[list[float], list[int]]:
-        """24 Stundenwerte in W und die Stichprobengroesse je Stunde."""
+    def profil(
+        self, heute: dt.date, wochenende: bool
+    ) -> tuple[list[float], list[int], list[int]]:
+        """24 Stundenwerte in W, Stichprobe je Stunde, davon selbst gemessen.
+
+        Der Wert nutzt alles, was da ist - auch vorbelegte Tage. Die dritte
+        Rueckgabe zaehlt nur die selbst beobachteten Tage und entscheidet
+        allein darueber, ob die Stunde als gelernt gilt.
+        """
         fenster = self._fenster(heute)
         werte: list[float] = []
         n: list[int] = []
+        n_eigen: list[int] = []
         for stunde in range(24):
             paare: list[tuple[float, float]] = []
+            eigen = 0
             for tag, profil in fenster.items():
                 try:
                     ist_we = dt.date.fromisoformat(tag).weekday() >= 5
@@ -162,32 +178,42 @@ class Hauslastschaetzer:
                 v = profil.get(str(stunde))
                 if v is not None:
                     paare.append((v, _gewicht(tag, heute)))
+                    if tag not in self.bootstrap_tage:
+                        eigen += 1
             n.append(len(paare))
+            n_eigen.append(eigen)
             if len(paare) >= MIN_TAGE_HAUSLAST:
                 m = robust.robuster_gewichteter_median(paare)
                 werte.append(m if m is not None else float(START_HAUSLAST_W[stunde]))
             else:
                 werte.append(float(START_HAUSLAST_W[stunde]))
-        return werte, n
+        return werte, n, n_eigen
 
     def wert(self, heute: dt.date, wochenende: bool) -> dict[str, Any]:
-        werte, n = self.profil(heute, wochenende)
-        gelernte_stunden = sum(1 for x in n if x >= MIN_TAGE_HAUSLAST)
+        werte, n, n_eigen = self.profil(heute, wochenende)
+        gelernte_stunden = sum(1 for x in n_eigen if x >= MIN_TAGE_HAUSLAST)
         return {
             "profil": [round(x, 1) for x in werte],
             "stichprobe": n,
+            "stichprobe_selbst_gemessen": n_eigen,
             "gelernte_stunden": gelernte_stunden,
             "gelernt": gelernte_stunden >= 24,
             "tagessumme_kwh": round(sum(werte) / 1000.0, 2),
         }
 
     def zu_dict(self) -> dict[str, Any]:
-        return {"tage": self.tage, "heute": self.heute, "laufend": self.laufend}
+        return {
+            "tage": self.tage,
+            "heute": self.heute,
+            "laufend": self.laufend,
+            "bootstrap_tage": sorted(self.bootstrap_tage),
+        }
 
     def aus_dict(self, d: dict[str, Any]) -> None:
         self.tage = dict(d.get("tage") or {})
         self.heute = d.get("heute")
         self.laufend = {k: list(v) for k, v in (d.get("laufend") or {}).items()}
+        self.bootstrap_tage = set(d.get("bootstrap_tage") or [])
 
     def aufraeumen(self, heute: dt.date) -> None:
         self.tage = _im_fenster(self.tage, heute, FENSTER_HAUSLAST_TAGE)

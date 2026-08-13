@@ -239,6 +239,10 @@ class HauslastJetztSensor(Basis):
             "stichprobe_diese_stunde": (
                 info["stichprobe"][jetzt.hour] if info and jetzt else None
             ),
+            "davon_selbst_gemessen": (
+                info["stichprobe_selbst_gemessen"][jetzt.hour]
+                if info and jetzt else None
+            ),
             "gemessen_jetzt": self._d.get("hauslast_w"),
             "quelle": self._d.get("hauslast_quelle"),
             "fenster_tage": FENSTER_HAUSLAST_TAGE,
@@ -390,6 +394,10 @@ class LernstandSensor(Basis):
             "hauslastprofil_wochenende": hauslast.get("wochenende"),
             "hauslast_stichprobe_werktag": hauslast.get("stichprobe_werktag"),
             "hauslast_stichprobe_wochenende": hauslast.get("stichprobe_wochenende"),
+            "hauslast_selbst_gemessen_werktag": hauslast.get("selbst_gemessen_werktag"),
+            "hauslast_selbst_gemessen_wochenende": hauslast.get(
+                "selbst_gemessen_wochenende"
+            ),
             "tagesform_kurve": form.get("kurve"),
             "tagesform_stichprobe": form.get("stichprobe_tage"),
             "pegel": (d.get("pegel_info") or {}).get("pegel"),
